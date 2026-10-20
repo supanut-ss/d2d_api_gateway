@@ -57,6 +57,16 @@ public sealed class AdminAppsController(AppAdminService admin) : ControllerBase
         return NoContent();
     }
 
+    /// <summary>Returns the stored connection string so the console can show it on edit. POST (not GET) so the audit trail records every read.</summary>
+    [HttpPost("{id:guid}/database/reveal")]
+    [Authorize(Policy = Policies.Admin)]
+    public async Task<IActionResult> RevealDatabase(Guid id, CancellationToken ct)
+    {
+        Response.Headers.CacheControl = "no-store";
+        var cs = await admin.RevealDatabaseConnectionAsync(id, ct);
+        return cs is null ? NotFound() : Ok(new { connectionString = cs });
+    }
+
     [HttpPut("{id:guid}/line-channels")]
     [Authorize(Policy = Policies.Admin)]
     public Task<LineChannelSummary> UpsertLineChannel(Guid id, UpsertLineChannelRequest request, CancellationToken ct) =>

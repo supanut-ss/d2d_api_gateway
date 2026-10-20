@@ -140,7 +140,7 @@ GET /api/v1/database/credentials    X-App-Id + X-Api-Key
   so a new value reaches the app on its next fetch without redeploying it.
 - Register with `verify=false` when D2D itself cannot reach the database (D2D otherwise tests the connection before
   saving). Leave `provision` off for an app's real database: it creates only the sample schema.
-- Admin responses never contain the connection string.
+- Admin list/detail responses never contain the connection string. The only exception is `POST /api/v1/admin/apps/{id}/database/reveal` (Admin role, no-store, recorded in the audit log), which the console calls to fill the edit form.
 
 ### Master DB schema
 
@@ -536,7 +536,7 @@ Roles are lowercase names (`a-z 0-9 _ : . -`, up to 32 characters, at most 10); 
 Line channel body also takes `tokenMode` (`Static` / `Stateless` / `JwtAssertion`), `assertionKeyId`,
 `assertionPrivateKey` (JWK JSON) — see [Channel access tokens](#channel-access-tokens) — and
 `allowCredentialAccess` (default `false`) — see [Keys for apps that call LINE themselves](#keys-for-apps-that-call-line-themselves-opt-in).
-Responses from the admin API never contain secrets or tokens, only whether a token exists.
+Responses from the admin API never contain secrets or tokens, only whether a token exists. The one exception is the database `reveal` call above.
 
 ---
 
@@ -548,7 +548,7 @@ Responses from the admin API never contain secrets or tokens, only whether a tok
 | API keys, refresh tokens | Only SHA-256 hashes stored; constant-time comparison |
 | Cross-app token use | `app_id` claim must match `X-App-Id`; refresh tokens bound to app; backends must require their own `app_code` |
 | Token forgery | RS256 only (HS256 / algorithm confusion rejected); private key never leaves this API, backends hold public keys only |
-| LINE keys and connection strings leaving D2D | Never in admin responses; only to the owning app's backend, per channel / per database opt-in, no-store, read log |
+| LINE keys and connection strings leaving D2D | Not in admin list/detail responses (only the audited `database/reveal` call for the Admin role); otherwise only to the owning app's backend, per channel / per database opt-in, no-store, read log |
 | Webhook spoofing | `x-line-signature` HMAC check on raw bytes; body limit 1 MB |
 | Open redirect | Redirect URIs must be in the app's allow-list (exact match) |
 | CSRF / code injection in LINE Login | `state` (server-side, single use), `nonce`, PKCE S256 |

@@ -320,6 +320,11 @@ async function channels(app, write) {
 
 async function database(app, write) {
   const id = app.id;
+  // Admins who can edit see the stored connection string in the form (each read is recorded in the audit log).
+  let currentConnection = '';
+  if (write && app.databaseProvider) {
+    try { currentConnection = (await api.post(`/apps/${id}/database/reveal`)).connectionString ?? ''; } catch { /* leave empty: type a new one */ }
+  }
   return {
     actions: {
       saveDatabase: async (fd) => {
@@ -341,7 +346,7 @@ async function database(app, write) {
           <dt>Engine</dt><dd>${app.databaseProvider ? badge(app.databaseProvider, 'info') : badge('not configured')}</dd>
           <dt>Keys for app</dt><dd>${yesNo(app.databaseCredentialAccess, 'Allowed', 'Off')}</dd>
         </dl>
-        <p class="muted">The connection string is stored encrypted and is never shown again. Saving a new one replaces it.</p>
+        <p class="muted">The connection string is stored encrypted. Admins who can edit see it in the form below; each view is recorded in the audit log.</p>
       </div>
 
       <div class="card">
@@ -349,7 +354,7 @@ async function database(app, write) {
         <form data-submit="saveDatabase">
           <fieldset ${write ? '' : 'disabled'}>
             ${select('Engine', 'provider', ['SqlServer', 'PostgreSql', 'MySql', 'Sqlite'], app.databaseProvider || 'SqlServer')}
-            ${area('Connection string', 'connectionString', { required: true, rows: 3, placeholder: 'Server=…;Database=…;User Id=…;Password=…;' })}
+            ${area('Connection string', 'connectionString', { value: currentConnection, required: true, rows: 3, placeholder: 'Server=…;Database=…;User Id=…;Password=…;' })}
             ${check('Let the app’s backend fetch it', 'allowCredentialAccess', app.databaseCredentialAccess,
               'Enables GET /api/v1/database/credentials, so the app needs no connection string of its own.')}
             ${check('Test the connection before saving', 'verify', true, 'Turn off if D2D itself cannot reach this database.')}

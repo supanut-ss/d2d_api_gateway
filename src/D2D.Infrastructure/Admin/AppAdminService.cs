@@ -180,6 +180,13 @@ public sealed class AppAdminService(
         registry.Invalidate(id);
     }
 
+    /// <summary>The stored connection string in clear text, for the admin console's edit form. The caller must be an admin.</summary>
+    public async Task<string?> RevealDatabaseConnectionAsync(Guid id, CancellationToken ct)
+    {
+        var app = await LoadAsync(id, ct);
+        return app.Database is null ? null : secrets.Unprotect(app.Database.ConnectionStringEncrypted);
+    }
+
     public async Task<LineChannelSummary> UpsertLineChannelAsync(Guid id, UpsertLineChannelRequest request, CancellationToken ct)
     {
         if (!await db.Apps.AnyAsync(a => a.Id == id, ct)) throw ApiException.NotFound("App not found");
