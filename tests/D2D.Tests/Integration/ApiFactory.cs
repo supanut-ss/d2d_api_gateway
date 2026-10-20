@@ -17,11 +17,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public ApiFactory()
     {
         Directory.CreateDirectory(TempDir);
+        // By default a throw-away SQLite file. To prove a real engine works, point the whole suite at an EMPTY database:
+        //   D2D_TEST_DB_PROVIDER=SqlServer  D2D_TEST_DB_CONNECTION="Server=...;Database=...;..."
+        // (the tests create their own apps and users there; drop the tables afterwards).
+        var provider = Environment.GetEnvironmentVariable("D2D_TEST_DB_PROVIDER") ?? "Sqlite";
+        var connection = Environment.GetEnvironmentVariable("D2D_TEST_DB_CONNECTION") ?? $"Data Source={Path.Combine(TempDir, "master.db")}";
+
         var settings = new Dictionary<string, string>
         {
-            ["MasterDb__Provider"] = "Sqlite",
-            ["MasterDb__ConnectionString"] = $"Data Source={Path.Combine(TempDir, "master.db")}",
-            ["MasterDb__AutoCreate"] = "true",
+            ["MasterDb__Provider"] = provider,
+            ["MasterDb__ConnectionString"] = connection,
+            ["MasterDb__AutoMigrate"] = "true",
             ["Jwt__Issuer"] = "http://localhost",
             ["Admin__ApiKey"] = AdminKey,
             ["DataProtection__KeysPath"] = Path.Combine(TempDir, "keys"),

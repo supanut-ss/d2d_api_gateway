@@ -9,8 +9,11 @@ public sealed class MasterDbOptions
     public DbProvider Provider { get; set; } = DbProvider.SqlServer;
     public string ConnectionString { get; set; } = "";
 
-    /// <summary>Calls EnsureCreated on startup. Development only; use migrations in production.</summary>
-    public bool AutoCreate { get; set; }
+    /// <summary>
+    /// Applies pending EF Core migrations of the master database when the app starts (creating the database schema on the first run).
+    /// Fine for a single instance; with several instances apply migrations from a script or one-off job instead.
+    /// </summary>
+    public bool AutoMigrate { get; set; }
 }
 
 public sealed class JwtOptions

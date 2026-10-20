@@ -562,7 +562,7 @@ Responses from the admin API never contain secrets or tokens, only whether a tok
 
 | Key | Meaning |
 |---|---|
-| `MasterDb:Provider` / `ConnectionString` / `AutoCreate` | Master DB; `AutoCreate` = `EnsureCreated` on startup (dev only) |
+| `MasterDb:Provider` / `ConnectionString` / `AutoMigrate` | Master DB; `AutoMigrate` applies pending migrations at startup (see [Migrations](#migrations)) |
 | `Server:PublicBaseUrl` | Public URL incl. IIS application path (e.g. `https://api.example.com`); used in discovery and admin `webhookUrl` |
 | `Jwt:Issuer` / `Audience` / `AccessTokenMinutes` / `RefreshTokenDays` | Tokens (`Issuer` = public base URL) |
 | `Jwt:AdminAudience` / `AdminAccessTokenMinutes` / `AdminSessionHours` | Admin console tokens (default `d2d-admin`, 15 min, session ends 12 h after the last refresh) |
@@ -584,11 +584,28 @@ See [DEPLOYMENT.md](DEPLOYMENT.md) for Plesk/IIS.
 
 ## 10. Production checklist / next steps
 
+### Migrations
+
+The master database schema is managed with EF Core migrations, **one project per provider** because migrations contain
+engine-specific SQL: `D2D.Migrations.SqlServer`, `.PostgreSql`, `.MySql`, `.Sqlite`. The app picks the one matching
+`MasterDb:Provider` at startup (`MigrationsAssemblies.For`).
+
+| Task | How |
+|---|---|
+| Apply on startup | `MasterDb:AutoMigrate=true` runs pending migrations when the app starts (first run creates every table). Fine for a single instance such as one IIS site. |
+| Apply from a script (DBA, or several instances) | `./scripts/script-migrations.ps1 SqlServer d2d-master.sql` writes an idempotent SQL script; keep `AutoMigrate=false` |
+| Change the model | Edit the entity, then `./scripts/add-migration.ps1 <Name>` (adds the migration for **all four** providers), commit the generated files |
+| Safety net | `MigrationsTests` fails if any provider's migrations differ from the model, or if a provider is missing a migration another has. No database is needed to run it. |
+
+Verified: the SQL Server migration was applied to a real SQL Server 2022 database, the SQLite one runs in the whole test suite;
+the PostgreSQL and MySQL migrations are generated and checked against the model but have not been run against a server yet.
+A database created before migrations existed (by `EnsureCreated`) has no history table: drop its tables once (they hold no data
+you want yet) and let the migration create them.
+
 Not done in the scaffold — required before production:
 
-1. **Migrations** — replace `EnsureCreated` with EF Core migrations. Migrations are provider-specific:
-   keep one migrations assembly per provider (`D2D.Migrations.SqlServer`, `.PostgreSql`, `.MySql`) for
-   the master DB and for each app module.
+1. **Migrations for app modules** — the master DB has migrations (see [Migrations](#migrations)); a module that keeps its
+   own tables in a per-app database (like the sample Notes module, which still uses `EnsureCreated`) needs its own.
 2. **Data Protection key ring** — share it across instances and protect it at rest
    (Azure Key Vault / AWS KMS / certificate). Losing it makes stored secrets unreadable.
 3. **Distributed cache** — swap `AddDistributedMemoryCache` for Redis (LINE Login state/one-time codes),

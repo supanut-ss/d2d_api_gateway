@@ -1,8 +1,9 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <RootNamespace>D2D.Api</RootNamespace>
     <AspNetCoreHostingModel>OutOfProcess</AspNetCoreHostingModel>
+    <UserSecretsId>cf03922a-2cec-460f-a8ed-00eefa23f817</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>
@@ -16,6 +17,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\D2D.Infrastructure\D2D.Infrastructure.csproj" />
+    <ProjectReference Include="..\D2D.Migrations.SqlServer\D2D.Migrations.SqlServer.csproj" />
+    <ProjectReference Include="..\D2D.Migrations.PostgreSql\D2D.Migrations.PostgreSql.csproj" />
+    <ProjectReference Include="..\D2D.Migrations.MySql\D2D.Migrations.MySql.csproj" />
+    <ProjectReference Include="..\D2D.Migrations.Sqlite\D2D.Migrations.Sqlite.csproj" />
   </ItemGroup>
 
 </Project>

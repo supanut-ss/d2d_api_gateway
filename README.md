@@ -40,6 +40,13 @@ curl -X PUT http://localhost:5080/api/v1/admin/apps/{appId}/line-channels -H "X-
 # then set the LINE webhook URL to https://<host>/webhooks/line/<id>
 ```
 
+## Database migrations
+
+The master database schema is created and upgraded by EF Core migrations (one project per engine, see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#migrations)). `MasterDb:AutoMigrate=true` (on in development) applies them at startup.
+After changing an entity run `./scripts/add-migration.ps1 <Name>`; `dotnet test` fails until every provider has the migration.
+A local SQLite file created before migrations existed must be deleted once (`src/D2D.Api/d2d_master.db*`).
+
 ## Test
 
 ```bash
@@ -48,4 +55,11 @@ dotnet test
 
 Includes integration tests that run the real API in memory against a temporary SQLite database
 (login, refresh rotation, members/roles, per-app databases, LINE webhook and login redirect, JWKS).
+
+To prove a real engine works, run the same suite against an **empty** database (the tests create their own apps and users
+there, so drop the tables afterwards):
+
+```bash
+D2D_TEST_DB_PROVIDER=SqlServer D2D_TEST_DB_CONNECTION="Server=host,1433;Database=empty_db;User Id=...;Password=...;TrustServerCertificate=True"   dotnet test --filter "FullyQualifiedName~Integration"
+```
 "# d2d_api_gateway" 

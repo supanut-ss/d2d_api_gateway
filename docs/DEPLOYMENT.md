@@ -43,7 +43,10 @@ Copy `deploy/appsettings.Production.example.json` to `appsettings.Production.jso
 | `Jwt:PrivateKeyPath`, `DataProtection:KeysPath` | folders under `private\d2d\` |
 | `DataProtection:ProtectWithDpapi` | `true` (set `false` if the app fails to start: the app pool then lacks a loaded user profile) |
 
-`MasterDb:AutoCreate=true` creates the tables on first start only. Schema changes later need migrations.
+`MasterDb:AutoMigrate=true` applies the EF Core migrations when the app starts: the first start creates every table, and later
+versions upgrade the schema in place. Prefer `AutoMigrate=false` plus `./scripts/script-migrations.ps1 SqlServer out.sql` if a DBA
+should review the SQL first. The database user needs permission to create and alter tables. Never point two different versions of D2D
+(for example a developer machine and production) at the same database.
 
 **Back up** `private\d2d\` (Data Protection keys and `jwt-signing.pem`). Without the key ring every stored
 secret (connection strings, LINE secrets and tokens) is unreadable; without the JWT key everyone is signed out.

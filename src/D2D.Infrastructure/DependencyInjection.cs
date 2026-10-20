@@ -11,6 +11,7 @@ using D2D.Infrastructure.Persistence;
 using D2D.Infrastructure.Security;
 using D2D.Infrastructure.Tenancy;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -35,7 +36,7 @@ public static class DependencyInjection
         services.AddDbContext<MasterDbContext>((sp, o) =>
         {
             var master = sp.GetRequiredService<IOptions<MasterDbOptions>>().Value;
-            o.UseProvider(master.Provider, master.ConnectionString);
+            o.UseProvider(master.Provider, master.ConnectionString, MigrationsAssemblies.For(master.Provider));
         });
         services.AddHealthChecks().AddDbContextCheck<MasterDbContext>("master-db");
 
@@ -91,8 +92,8 @@ public static class DependencyInjection
     }
 
     /// <summary>
-    /// Loads the JWT signing key (so a bad key fails at startup, not on the first login) and creates the
-    /// master schema when MasterDb:AutoCreate is on.
+    /// Loads the JWT signing key (so a bad key fails at startup, not on the first login) and applies pending
+    /// master-database migrations when MasterDb:AutoMigrate is on.
     /// </summary>
     public static async Task InitializeAsync(this IServiceProvider services)
     {
@@ -100,8 +101,8 @@ public static class DependencyInjection
 
         await using var scope = services.CreateAsyncScope();
         var options = scope.ServiceProvider.GetRequiredService<IOptions<MasterDbOptions>>().Value;
-        if (!options.AutoCreate) return;
+        if (!options.AutoMigrate) return;
 
-        await scope.ServiceProvider.GetRequiredService<MasterDbContext>().Database.EnsureCreatedAsync();
+        await scope.ServiceProvider.GetRequiredService<MasterDbContext>().Database.MigrateAsync();
     }
 }
