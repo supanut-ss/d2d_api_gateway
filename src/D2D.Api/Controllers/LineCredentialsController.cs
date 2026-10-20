@@ -67,4 +67,15 @@ public sealed class LineCredentialsController(
             token?.Token,
             token?.ExpiresAt);
     }
+
+    /// <summary>
+    /// Same as the call above for the app's own channel of a type (default Messaging), so the app does not need to know its channel id.
+    /// </summary>
+    [HttpGet("~/api/v1/line/credentials")]
+    public async Task<LineChannelCredentials> GetByType([FromQuery] LineChannelType type = LineChannelType.Messaging, CancellationToken ct = default)
+    {
+        var channel = await registry.GetLineChannelAsync(tenant.Required.Id, type, ct)
+            ?? throw ApiException.NotFound($"No {type} LINE channel for this app");
+        return await Get(channel.ChannelId, ct);
+    }
 }

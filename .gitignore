@@ -11,3 +11,10 @@ TestResults/
 appsettings.Production.json
 *.pem
 publish/
+
+# Deploy: local credentials, staging, cache
+deploy.credentials.ps1
+deploy-single-host.local.ps1
+deploy/app/
+deploy/offline/
+.deploy-cache/
