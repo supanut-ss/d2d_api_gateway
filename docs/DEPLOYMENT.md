@@ -23,7 +23,8 @@ Not tested on a real Plesk server — verify each step there.
   The app identity needs read/write there and nobody else should.
 - Every app runs **out-of-process**, or in its own app pool (in-process hosting allows one ASP.NET Core app per pool).
   D2D is out-of-process by default.
-- Reserved first path segments: `api`, `webhooks`, `health`, `.well-known`, `swagger`, `admin` belong to D2D; no app may use those names.
+- Reserved first path segments: `api`, `webhooks`, `health`, `.well-known`, `swagger`, `admin`, `owntracks` belong to D2D; no app may use those names.
+  `/owntracks/*` is passed on to the payyet application (`/payyet/owntracks/*`, setting `Forward:OwnTracksUrl`), so OwnTracks phones and the tracker page can use the short address.
 
 ## 2. Build D2D
 
