@@ -1,0 +1,13 @@
+bin/
+obj/
+.vs/
+.idea/
+*.user
+*.db
+*.db-shm
+*.db-wal
+keys/
+TestResults/
+appsettings.Production.json
+*.pem
+publish/
