@@ -445,13 +445,22 @@ D2D answers from the database.
 
 ```
 GET /api/v1/line/channels/{channelId}/credentials     X-App-Id + X-Api-Key
-→ { channelId, providerId, type, tokenMode, channelSecret, accessToken, accessTokenExpiresAt }
+→ { channelId, providerId, type, tokenMode, channelSecret, accessToken, accessTokenExpiresAt, liffId, jobsKey, webhookForwardUrl }
+
+GET /api/v1/line/credentials?type=Messaging|Login     the app's own channel of that type (no channel id needed)
+GET /api/v1/line/credentials/all                      everything LINE for the app in one call
+→ { providerId, messaging, login, liffId, jobsKey, channels: [ …as above… ], withheldChannelIds: [ … ] }
 ```
+
+- `liffId` (Login channel; not secret) and `jobsKey` (guards the app's `/jobs/*` endpoints) are saved on the channel in the console's
+  *LINE channels* page together with the provider, channel id, secret, token settings and forward URL. `credentials/all` lists
+  only channels that allow credential access; the others appear by id in `withheldChannelIds` and nothing more.
+- In the console, leaving a secret blank when editing a channel keeps the stored value (secrets are never shown again).
 
 - `accessToken` is a token that works now (Messaging channels): the stored one for `Static`, otherwise one D2D
   issued and renews itself. `accessTokenExpiresAt` is null for `Static`. Cache it in memory and fetch again when
   it is within a minute of expiring (a returned token has at least 2 minutes left for `Stateless`, 1 day for `JwtAssertion`).
-  Login channels return only `channelSecret`.
+  Login channels have no `accessToken` (null); they return the secret, `liffId` and `jobsKey`.
 - `channelSecret` lets the app verify webhook signatures or exchange Login codes itself.
 - The v2.1 signing key (`assertionPrivateKey`) is never returned.
 - **Off by default.** Register the channel with `allowCredentialAccess=true` to enable it. Without it the

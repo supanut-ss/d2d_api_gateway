@@ -43,13 +43,16 @@ public sealed record UpsertLineChannelRequest(
     LineChannelType Type,
     [Required, MaxLength(32)] string ChannelId,
     [Required, MaxLength(64)] string ProviderId,
-    [Required] string ChannelSecret,
+    string? ChannelSecret,
     string? AccessToken,
     [Url] string? WebhookForwardUrl,
     LineTokenMode? TokenMode = null,
     string? AssertionKeyId = null,
     string? AssertionPrivateKey = null,
-    bool AllowCredentialAccess = false);
+    bool AllowCredentialAccess = false,
+    [MaxLength(64)] string? LiffId = null,
+    string? JobsKey = null,
+    bool IsActive = true);
 
 public sealed record LineChannelSummary(
     string ChannelId,
@@ -61,7 +64,13 @@ public sealed record LineChannelSummary(
     DateTime? IssuedTokenExpiresAt,
     string? WebhookForwardUrl,
     string? WebhookPath,
-    string? WebhookUrl);
+    string? WebhookUrl,
+    bool IsActive,
+    string? AssertionKeyId,
+    bool HasAssertionPrivateKey,
+    string? LiffId,
+    bool HasJobsKey,
+    DateTime UpdatedAt);
 
 public sealed record AppResponse(
     Guid Id,
@@ -202,23 +211,37 @@ public sealed class AppAdminService(
             db.LineChannels.Add(channel);
         }
 
-        var mode = ResolveTokenMode(request);
+        // Secrets are never shown again, so a blank value on an existing channel keeps what is stored.
+        var existing = channel.ChannelSecretEncrypted is not null;
+        if (string.IsNullOrEmpty(request.ChannelSecret) && !existing) throw ApiException.BadRequest("ChannelSecret is required");
+        var keepToken = string.IsNullOrEmpty(request.AccessToken) && channel.AccessTokenEncrypted is not null;
+        var keepKey = string.IsNullOrEmpty(request.AssertionPrivateKey) && channel.AssertionPrivateKeyEncrypted is not null;
+        var mode = ResolveTokenMode(request, keepToken, keepKey);
+
         channel.Type = request.Type;
-        channel.ChannelSecretEncrypted = secrets.Protect(request.ChannelSecret);
+        if (!string.IsNullOrEmpty(request.ChannelSecret)) channel.ChannelSecretEncrypted = secrets.Protect(request.ChannelSecret);
         channel.TokenMode = mode;
-        channel.AccessTokenEncrypted = mode == LineTokenMode.Static && !string.IsNullOrEmpty(request.AccessToken)
-            ? secrets.Protect(request.AccessToken)
-            : null;
-        channel.AssertionKeyId = mode == LineTokenMode.JwtAssertion ? request.AssertionKeyId : null;
-        channel.AssertionPrivateKeyEncrypted = mode == LineTokenMode.JwtAssertion ? secrets.Protect(request.AssertionPrivateKey!) : null;
+        if (mode != LineTokenMode.Static) channel.AccessTokenEncrypted = null;
+        else if (!string.IsNullOrEmpty(request.AccessToken)) channel.AccessTokenEncrypted = secrets.Protect(request.AccessToken);
+        if (mode != LineTokenMode.JwtAssertion)
+        {
+            channel.AssertionKeyId = null;
+            channel.AssertionPrivateKeyEncrypted = null;
+        }
+        else
+        {
+            channel.AssertionKeyId = string.IsNullOrEmpty(request.AssertionKeyId) ? channel.AssertionKeyId : request.AssertionKeyId;
+            if (!string.IsNullOrEmpty(request.AssertionPrivateKey)) channel.AssertionPrivateKeyEncrypted = secrets.Protect(request.AssertionPrivateKey);
+        }
         // Credentials changed: never reuse a token issued with the old ones.
         channel.IssuedAccessTokenEncrypted = null;
         channel.IssuedAccessTokenExpiresAt = null;
-        channel.WebhookForwardUrl = request.WebhookForwardUrl;
+        channel.WebhookForwardUrl = string.IsNullOrWhiteSpace(request.WebhookForwardUrl) ? null : request.WebhookForwardUrl;
         channel.AllowCredentialAccess = request.AllowCredentialAccess;
-        channel.IsActive = true;
+        channel.LiffId = string.IsNullOrWhiteSpace(request.LiffId) ? null : request.LiffId.Trim();
+        if (!string.IsNullOrEmpty(request.JobsKey)) channel.JobsKeyEncrypted = secrets.Protect(request.JobsKey);
+        channel.IsActive = request.IsActive;
         channel.UpdatedAt = clock.GetUtcNow().UtcDateTime;
-
         await db.SaveChangesAsync(ct);
         registry.Invalidate(id);
         return ToSummary(channel);
@@ -305,21 +328,21 @@ public sealed class AppAdminService(
     /// <summary>
     /// Messaging channels default to Static when a token is supplied, otherwise Stateless (needs only id + secret).
     /// </summary>
-    private static LineTokenMode ResolveTokenMode(UpsertLineChannelRequest request)
+    private static LineTokenMode ResolveTokenMode(UpsertLineChannelRequest request, bool keepToken, bool keepKey)
     {
         if (request.Type == LineChannelType.Login) return LineTokenMode.Static;
 
         var mode = request.TokenMode
-            ?? (string.IsNullOrEmpty(request.AccessToken) ? LineTokenMode.Stateless : LineTokenMode.Static);
+            ?? (string.IsNullOrEmpty(request.AccessToken) && !keepToken ? LineTokenMode.Stateless : LineTokenMode.Static);
 
         switch (mode)
         {
-            case LineTokenMode.Static when string.IsNullOrEmpty(request.AccessToken):
+            case LineTokenMode.Static when string.IsNullOrEmpty(request.AccessToken) && !keepToken:
                 throw ApiException.BadRequest("AccessToken is required for Static token mode");
             case LineTokenMode.JwtAssertion:
-                if (string.IsNullOrEmpty(request.AssertionKeyId) || string.IsNullOrEmpty(request.AssertionPrivateKey))
+                if (string.IsNullOrEmpty(request.AssertionKeyId) || (string.IsNullOrEmpty(request.AssertionPrivateKey) && !keepKey))
                     throw ApiException.BadRequest("AssertionKeyId and AssertionPrivateKey are required for JwtAssertion token mode");
-                if (!IsPrivateJwk(request.AssertionPrivateKey))
+                if (!string.IsNullOrEmpty(request.AssertionPrivateKey) && !IsPrivateJwk(request.AssertionPrivateKey))
                     throw ApiException.BadRequest("AssertionPrivateKey must be the private key as JWK JSON");
                 break;
         }
@@ -355,6 +378,12 @@ public sealed class AppAdminService(
             channel.WebhookForwardUrl,
             webhookPath,
             // The URL to paste into the LINE console (includes the IIS application path).
-            webhookPath is not null && !string.IsNullOrEmpty(publicBase) ? publicBase + webhookPath : null);
+            webhookPath is not null && !string.IsNullOrEmpty(publicBase) ? publicBase + webhookPath : null,
+            channel.IsActive,
+            channel.AssertionKeyId,
+            channel.AssertionPrivateKeyEncrypted is not null,
+            channel.LiffId,
+            channel.JobsKeyEncrypted is not null,
+            channel.UpdatedAt);
     }
 }

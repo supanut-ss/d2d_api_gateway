@@ -270,6 +270,13 @@ namespace D2D.Migrations.Sqlite.Migrations
                     b.Property<DateTime?>("IssuedAccessTokenExpiresAt")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("JobsKeyEncrypted")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LiffId")
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("ProviderId")
                         .IsRequired()
                         .HasMaxLength(64)

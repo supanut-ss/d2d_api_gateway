@@ -21,7 +21,9 @@ public sealed record LineChannelConfig(
     string? StaticAccessToken = null,
     string? AssertionKeyId = null,
     string? AssertionPrivateKey = null,
-    bool AllowCredentialAccess = false);
+    bool AllowCredentialAccess = false,
+    string? LiffId = null,
+    string? JobsKey = null);
 
 /// <summary>The app (tenant) the current request or background job is running for.</summary>
 public interface ITenantContext
@@ -44,6 +46,9 @@ public interface IAppRegistry
     Task<IReadOnlyList<string>> GetRedirectUrisAsync(Guid appId, CancellationToken ct = default);
     Task<LineChannelConfig?> FindLineChannelAsync(string channelId, CancellationToken ct = default);
     Task<LineChannelConfig?> GetLineChannelAsync(Guid appId, LineChannelType type, CancellationToken ct = default);
+
+    /// <summary>Every active LINE channel of an app (decrypted).</summary>
+    Task<IReadOnlyList<LineChannelConfig>> GetLineChannelsAsync(Guid appId, CancellationToken ct = default);
 
     /// <summary>Drops every cached entry of an app after its configuration changed.</summary>
     void Invalidate(Guid appId);

@@ -191,124 +191,198 @@ const TOKEN_MODES = [
   ['JwtAssertion', 'JWT assertion — v2.1 token with your own key pair'],
 ];
 
-async function channels(app, write) {
+const randomKey = () => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
+
+async function channels(app, write, query = {}) {
   const id = app.id;
+  const back = `#/apps/${id}/channels`;
+  const url = (ch) => ch.webhookUrl || (ch.webhookPath ? location.origin + BASE + ch.webhookPath : '');
+  const editing = query.edit ? app.lineChannels.find((c) => c.channelId === query.edit) : null;
+  const creating = query.new === '1' || (query.edit && !editing);
 
-  const form = (ch) => {
-    const editing = !!ch;
-    const mode = ch?.tokenMode || 'Stateless';
-    return html`
-      ${editing
-        ? html`<input type="hidden" name="type" value="${ch.type}">${field('Type', 'typeShown', { value: ch.type, readonly: true })}`
-        : select('Type', 'type', [['Messaging', 'Messaging API (bot, push, webhook)'], ['Login', 'LINE Login (LIFF, web login)']], 'Messaging')}
-      <div class="grid-2">
-        ${field('Channel ID', 'channelId', { value: ch?.channelId || '', required: true, readonly: editing })}
-        ${field('LINE provider ID', 'providerId', { value: ch?.providerId || '', required: true, readonly: editing,
-          hint: editing ? 'Fixed once registered.' : 'From the LINE console URL …/provider/<id>. Channels of one provider share user IDs.' })}
-      </div>
-      ${field('Channel secret', 'channelSecret', { type: 'password', required: true, autocomplete: 'new-password',
-        hint: editing ? 'Not shown after saving. Enter it again — saving replaces all settings.' : '' })}
-      <div class="grp-messaging">
-        ${select('Access token', 'tokenMode', TOKEN_MODES, mode)}
-        <div class="grp-static">${field('Access token', 'accessToken', { type: 'password', autocomplete: 'new-password', hint: editing ? 'Enter it again to keep Static mode.' : '' })}</div>
-        <div class="grp-jwt">
-          ${field('Key ID (kid)', 'assertionKeyId', { hint: 'Returned by LINE when you registered the public key.' })}
-          ${area('Private key (JWK JSON)', 'assertionPrivateKey', { rows: 5, hint: 'The matching private key. Stored encrypted and never returned.' })}
-        </div>
-        ${field('Forward events to', 'webhookForwardUrl', { type: 'url', value: ch?.webhookForwardUrl || '', placeholder: 'https://api.example.com/payyet/line/webhook',
-          hint: 'Optional. Each event is re-sent there, signed with the channel secret, so the app’s own LINE SDK code keeps working.' })}
-      </div>
-      ${check('Let the app’s backend fetch these keys', 'allowCredentialAccess', ch?.allowCredentialAccess || false,
-        'Enables GET /api/v1/line/channels/{id}/credentials for this app. Leave off if the app does not need it.')}`;
-  };
-
-  // Shows only the fields that matter for the chosen type and token mode.
-  const syncFields = (dlg) => {
-    const type = dlg.querySelector('[name="type"]').value;
-    const mode = dlg.querySelector('[name="tokenMode"]')?.value;
-    dlg.querySelector('.grp-messaging').hidden = type !== 'Messaging';
-    dlg.querySelector('.grp-static').hidden = mode !== 'Static';
-    dlg.querySelector('.grp-jwt').hidden = mode !== 'JwtAssertion';
-  };
-  const wire = (dlg) => {
-    syncFields(dlg);
-    dlg.querySelectorAll('[name="type"], [name="tokenMode"]').forEach((el) => el.addEventListener('change', () => syncFields(dlg)));
-  };
-
-  const save = async (fd, close) => {
+  const save = async (fd) => {
     const type = fd.get('type');
     const messaging = type === 'Messaging';
     const mode = messaging ? fd.get('tokenMode') : null;
     await api.put(`/apps/${id}/line-channels`, {
       type,
-      channelId: fd.get('channelId'),
       providerId: fd.get('providerId'),
-      channelSecret: fd.get('channelSecret'),
+      channelId: fd.get('channelId'),
+      channelSecret: fd.get('channelSecret') || null,
+      isActive: fd.get('isActive') === 'on',
       tokenMode: mode,
-      accessToken: mode === 'Static' ? fd.get('accessToken') : null,
+      accessToken: mode === 'Static' ? fd.get('accessToken') || null : null,
       assertionKeyId: mode === 'JwtAssertion' ? fd.get('assertionKeyId') : null,
-      assertionPrivateKey: mode === 'JwtAssertion' ? fd.get('assertionPrivateKey') : null,
+      assertionPrivateKey: mode === 'JwtAssertion' ? fd.get('assertionPrivateKey') || null : null,
       webhookForwardUrl: messaging ? fd.get('webhookForwardUrl') || null : null,
+      liffId: fd.get('liffId') || null,
       allowCredentialAccess: fd.get('allowCredentialAccess') === 'on',
+      jobsKey: fd.get('jobsKey') || null,
     });
-    close();
     toast('Channel saved');
-    rerender();
+    go(back);
   };
 
-  const url = (ch) => ch.webhookUrl || (ch.webhookPath ? location.origin + BASE + ch.webhookPath : '');
-
-  return {
-    actions: {
-      addChannel: () => openModal({ title: 'Add a LINE channel', wide: true, body: form(null), onSubmit: save, onOpen: wire }),
-      editChannel: (el) => {
-        const ch = app.lineChannels.find((c) => c.channelId === el.dataset.id);
-        openModal({ title: 'Edit channel ' + ch.channelId, wide: true, body: form(ch), onSubmit: save, onOpen: wire });
-      },
-      verifyChannel: async (el) => {
-        el.setAttribute('aria-busy', 'true');
-        try {
-          const bot = await api.post(`/apps/${id}/line-channels/${el.dataset.id}/verify`);
-          openModal({
-            title: 'Channel works', noSubmit: true,
-            body: html`<p>D2D obtained an access token and LINE answered:</p>
-              <dl class="kv"><dt>Bot name</dt><dd>${bot?.displayName || '—'}</dd><dt>Basic ID</dt><dd>${bot?.basicId || '—'}</dd><dt>Bot user ID</dt><dd><code>${bot?.userId || '—'}</code></dd></dl>`,
-          });
-        } finally {
-          el.removeAttribute('aria-busy');
-        }
-      },
-      deleteChannel: async (el) => {
-        const ok = await confirmAction({
-          title: 'Delete channel', danger: true, confirmLabel: 'Delete',
-          message: `Remove channel ${el.dataset.id}? Its stored keys are deleted and its webhook URL stops working.`,
-        });
-        if (!ok) return;
-        await api.del(`/apps/${id}/line-channels/${el.dataset.id}`);
-        toast('Channel deleted');
-        rerender();
-      },
+  const actions = {
+    saveChannel: save,
+    cancelChannel: () => go(back),
+    generateJobsKey: () => {
+      const input = document.getElementById('f-jobsKey');
+      input.type = 'text';
+      input.value = randomKey();
+      input.focus();
     },
+    verifyChannel: async (el) => {
+      el.setAttribute('aria-busy', 'true');
+      try {
+        const bot = await api.post(`/apps/${id}/line-channels/${el.dataset.id}/verify`);
+        openModal({
+          title: 'Channel works', noSubmit: true,
+          body: html`<p>D2D obtained an access token and LINE answered:</p>
+            <dl class="kv"><dt>Bot name</dt><dd>${bot?.displayName || '—'}</dd><dt>Basic ID</dt><dd>${bot?.basicId || '—'}</dd><dt>Bot user ID</dt><dd><code>${bot?.userId || '—'}</code></dd></dl>`,
+        });
+      } finally {
+        el.removeAttribute('aria-busy');
+      }
+    },
+    deleteChannel: async (el) => {
+      const ok = await confirmAction({
+        title: 'Delete channel', danger: true, confirmLabel: 'Delete',
+        message: `Remove channel ${el.dataset.id}? Its stored keys are deleted and its webhook URL stops working.`,
+      });
+      if (!ok) return;
+      await api.del(`/apps/${id}/line-channels/${el.dataset.id}`);
+      toast('Channel deleted');
+      rerender();
+    },
+  };
+
+  // Shows only the groups that matter for the chosen type and token mode.
+  const onMount = (root) => {
+    const form = root.querySelector('form[data-submit="saveChannel"]');
+    if (!form) return;
+    const sync = () => {
+      const type = form.querySelector('[name="type"]').value;
+      const mode = form.querySelector('[name="tokenMode"]')?.value;
+      form.querySelectorAll('.grp-messaging').forEach((el) => { el.hidden = type !== 'Messaging'; });
+      form.querySelectorAll('.grp-login').forEach((el) => { el.hidden = type !== 'Login'; });
+      form.querySelectorAll('.grp-static').forEach((el) => { el.hidden = mode !== 'Static'; });
+      form.querySelectorAll('.grp-jwt').forEach((el) => { el.hidden = mode !== 'JwtAssertion'; });
+    };
+    sync();
+    form.querySelectorAll('[name="type"], [name="tokenMode"]').forEach((el) => el.addEventListener('change', sync));
+  };
+
+  // ----- one page: provider first, then the channel, then what depends on its type, then what the app's backend may read -----
+  if (creating || editing) {
+    const ch = editing;
+    const isEdit = !!ch;
+    const mode = ch?.tokenMode || 'Stateless';
+    const providers = [...new Set(app.lineChannels.map((c) => c.providerId))];
+    const keep = (hint) => (isEdit ? `${hint} Leave blank to keep the stored value.` : hint);
+
+    return {
+      actions,
+      onMount,
+      view: html`
+        <div class="row mb"><a href="${back}">← LINE channels</a></div>
+        <form data-submit="saveChannel">
+          <fieldset ${write ? '' : 'disabled'}>
+            <div class="card">
+              <h2>1. Provider</h2>
+              ${field('LINE provider ID', 'providerId', { value: ch?.providerId || providers[0] || '', required: true, readonly: isEdit,
+                hint: isEdit ? 'Fixed once the channel is registered.' : 'From the LINE console URL …/provider/<id>. Channels of one provider share user IDs, so a bot and its LIFF app must use the same one.' })}
+            </div>
+
+            <div class="card">
+              <h2>2. Channel</h2>
+              ${isEdit
+                ? html`<input type="hidden" name="type" value="${ch.type}">${field('Type', 'typeShown', { value: ch.type, readonly: true })}`
+                : select('Type', 'type', [['Messaging', 'Messaging API (bot, push, webhook)'], ['Login', 'LINE Login (LIFF, web login)']], query.type === 'Login' ? 'Login' : 'Messaging')}
+              <div class="grid-2">
+                ${field('Channel ID', 'channelId', { value: ch?.channelId || '', required: true, readonly: isEdit })}
+                ${field('Channel secret', 'channelSecret', { type: 'password', required: !isEdit, autocomplete: 'new-password',
+                  hint: isEdit ? 'Stored encrypted and never shown. Leave blank to keep it.' : '' })}
+              </div>
+              ${check('Channel is active', 'isActive', ch ? ch.isActive : true, 'An inactive channel is ignored: its webhook is refused and its keys are not handed out.')}
+            </div>
+
+            <div class="card grp-messaging">
+              <h2>3. Messaging API</h2>
+              ${select('Access token', 'tokenMode', TOKEN_MODES, mode)}
+              <div class="grp-static">${field('Access token', 'accessToken', { type: 'password', autocomplete: 'new-password',
+                hint: keep('The long-lived token from the LINE console.') })}</div>
+              <div class="grp-jwt">
+                ${field('Key ID (kid)', 'assertionKeyId', { value: ch?.assertionKeyId || '', hint: 'Returned by LINE when you registered the public key.' })}
+                ${area('Private key (JWK JSON)', 'assertionPrivateKey', { rows: 5, hint: keep('The matching private key. Stored encrypted and never returned.') })}
+              </div>
+              ${isEdit ? html`<div class="field"><label>Webhook URL (paste into LINE)</label>
+                <div><code>${url(ch)}</code> <button type="button" class="btn small ghost" data-action="__copy" data-copy="${url(ch)}">Copy</button></div></div>` : ''}
+              ${field('Forward events to', 'webhookForwardUrl', { type: 'url', value: ch?.webhookForwardUrl || '', placeholder: 'https://api.example.com/payyet/line/webhook',
+                hint: 'Optional. Each event is re-sent there, signed with the channel secret, so the app’s own LINE SDK code keeps working.' })}
+            </div>
+
+            <div class="card grp-login">
+              <h2>3. LINE Login / LIFF</h2>
+              ${field('LIFF ID', 'liffId', { value: ch?.liffId || '', placeholder: '2012345678-AbCdEfGh',
+                hint: 'From the LIFF tab of this Login channel. Not secret; the app reads it with the other LINE settings.' })}
+            </div>
+
+            <div class="card">
+              <h2>4. App backend access</h2>
+              ${check('Let the app’s backend fetch these settings', 'allowCredentialAccess', ch?.allowCredentialAccess || false,
+                'Enables GET /api/v1/line/credentials/all (and …/channels/{id}/credentials): provider, channel secret, access token, LIFF ID, jobs key and forward URL.')}
+              <div class="row">
+                ${field('Jobs key', 'jobsKey', { type: 'password', autocomplete: 'new-password',
+                  hint: `${isEdit ? (ch.hasJobsKey ? 'A key is stored. ' : 'No key stored yet. ') : ''}Guards the app’s scheduled-job endpoints (/jobs/*). Stored encrypted; handed to the app only when access above is on. Leave blank to keep it.` })}
+                <button type="button" class="btn small" data-action="generateJobsKey">Generate</button>
+              </div>
+            </div>
+
+            ${isEdit ? html`<div class="card">
+              <h2>Status</h2>
+              <dl class="kv">
+                <dt>Last changed</dt><dd>${fmtDate(ch.updatedAt)}</dd>
+                <dt>Issued token</dt><dd>${ch.issuedTokenExpiresAt ? 'valid until ' + fmtDate(ch.issuedTokenExpiresAt) : '—'}</dd>
+              </dl>
+            </div>` : ''}
+
+            ${write ? html`<div class="row"><button class="btn primary">Save</button> <button type="button" class="btn" data-action="cancelChannel">Cancel</button></div>` : ''}
+          </fieldset>
+        </form>`,
+    };
+  }
+
+  // ----- the list -----
+  return {
+    actions,
     view: html`
       <div class="row end mb">
-        ${write ? html`<button class="btn primary" data-action="addChannel">Add channel</button>` : ''}
+        ${write ? html`<a class="btn primary" href="${back}?new=1">Add channel</a>` : ''}
       </div>
       ${app.lineChannels.length === 0
         ? html`<div class="card empty">No LINE channel yet. Add the Messaging API channel of the bot and/or the LINE Login channel of the LIFF app.</div>`
         : html`<div class="table-wrap"><table>
-            <thead><tr><th>Channel</th><th>Type</th><th>Token</th><th>Webhook URL (paste into LINE)</th><th>Keys for app</th><th></th></tr></thead>
+            <thead><tr><th>Provider</th><th>Channel</th><th>Type</th><th>Token</th><th>LIFF ID</th><th>Webhook URL (paste into LINE)</th><th>Keys for app</th><th>Jobs key</th><th></th></tr></thead>
             <tbody>${app.lineChannels.map((ch) => html`<tr>
-              <td><code>${ch.channelId}</code><br><span class="muted">provider ${ch.providerId}</span></td>
+              <td><code>${ch.providerId}</code></td>
+              <td><code>${ch.channelId}</code>${ch.isActive ? '' : html`<br>${badge('Inactive', 'bad')}`}</td>
               <td>${badge(ch.type, ch.type === 'Messaging' ? 'info' : 'warn')}</td>
               <td>${ch.type === 'Messaging' ? badge(ch.tokenMode) : '—'}${ch.issuedTokenExpiresAt ? html`<br><span class="muted">issued token until ${fmtDate(ch.issuedTokenExpiresAt)}</span>` : ''}</td>
+              <td>${ch.liffId ? html`<code>${ch.liffId}</code>` : '—'}</td>
               <td>${ch.type === 'Messaging'
                 ? html`<code>${url(ch)}</code> <button class="btn small ghost" data-action="__copy" data-copy="${url(ch)}">Copy</button>
                     ${ch.webhookForwardUrl ? html`<br><span class="muted">forwards to ${ch.webhookForwardUrl}</span>` : ''}`
                 : '—'}</td>
               <td>${yesNo(ch.allowCredentialAccess, 'Allowed', 'Off')}</td>
+              <td>${yesNo(ch.hasJobsKey, 'Set', 'Not set')}</td>
               <td class="actions">
                 ${ch.type === 'Messaging' && write ? html`<button class="btn small" data-action="verifyChannel" data-id="${ch.channelId}">Test</button>` : ''}
-                ${write ? html`<button class="btn small" data-action="editChannel" data-id="${ch.channelId}">Edit</button>
+                ${write ? html`<a class="btn small" href="${back}?edit=${ch.channelId}">Edit</a>
                   <button class="btn small" data-action="deleteChannel" data-id="${ch.channelId}">Delete</button>` : ''}
               </td>
             </tr>`)}</tbody>

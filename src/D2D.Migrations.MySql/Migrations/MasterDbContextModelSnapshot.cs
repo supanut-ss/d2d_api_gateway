@@ -275,6 +275,13 @@ namespace D2D.Migrations.MySql.Migrations
                     b.Property<DateTime?>("IssuedAccessTokenExpiresAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<string>("JobsKeyEncrypted")
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("LiffId")
+                        .HasMaxLength(64)
+                        .HasColumnType("varchar(64)");
+
                     b.Property<string>("ProviderId")
                         .IsRequired()
                         .HasMaxLength(64)

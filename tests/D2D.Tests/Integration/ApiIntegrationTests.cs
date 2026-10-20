@@ -539,6 +539,67 @@ public sealed class ApiIntegrationTests(ApiFactory factory)
     }
 
     [Fact]
+    public async Task Line_settings_are_saved_together_and_the_app_reads_them_in_one_call()
+    {
+        var app = await CreateAppAsync();
+        var messagingId = NewChannelId();
+        var loginId = NewChannelId();
+        var headers = new[] { app.AppHeader, app.KeyHeader };
+
+        var m = await SendAsync(HttpMethod.Put, $"/api/v1/admin/apps/{app.Id}/line-channels", new
+        {
+            type = "Messaging", channelId = messagingId, providerId = "P9", channelSecret = "msg-secret", tokenMode = "Static", accessToken = "tok-1",
+            jobsKey = "jobs-1", allowCredentialAccess = true,
+        }, Admin);
+        Assert.Equal(HttpStatusCode.OK, m.Status);
+        Assert.True(m.Json.GetProperty("hasJobsKey").GetBoolean());
+        Assert.False(m.Json.TryGetProperty("jobsKey", out _));   // admin answers never carry a secret
+
+        Assert.Equal(HttpStatusCode.OK, (await SendAsync(HttpMethod.Put, $"/api/v1/admin/apps/{app.Id}/line-channels", new
+        {
+            type = "Login", channelId = loginId, providerId = "P9", channelSecret = "login-secret", liffId = $"{loginId}-AbC", allowCredentialAccess = true,
+        }, Admin)).Status);
+
+        var all = await SendAsync(HttpMethod.Get, "/api/v1/line/credentials/all", headers: headers);
+        Assert.Equal(HttpStatusCode.OK, all.Status);
+        Assert.Equal("P9", all.Json.GetProperty("providerId").GetString());
+        Assert.Equal("msg-secret", all.Json.GetProperty("messaging").GetProperty("channelSecret").GetString());
+        Assert.Equal("tok-1", all.Json.GetProperty("messaging").GetProperty("accessToken").GetString());
+        Assert.Equal("login-secret", all.Json.GetProperty("login").GetProperty("channelSecret").GetString());
+        Assert.Equal($"{loginId}-AbC", all.Json.GetProperty("liffId").GetString());
+        Assert.Equal("jobs-1", all.Json.GetProperty("jobsKey").GetString());
+        Assert.Equal(2, all.Json.GetProperty("channels").GetArrayLength());
+
+        // Editing with blank secrets keeps what is stored; the other fields change.
+        var edit = await SendAsync(HttpMethod.Put, $"/api/v1/admin/apps/{app.Id}/line-channels", new
+        {
+            type = "Messaging", channelId = messagingId, providerId = "P9", tokenMode = "Static", allowCredentialAccess = true, webhookForwardUrl = "https://example.com/hook",
+        }, Admin);
+        Assert.Equal(HttpStatusCode.OK, edit.Status);
+        var again = await SendAsync(HttpMethod.Get, "/api/v1/line/credentials/all", headers: headers);
+        Assert.Equal("msg-secret", again.Json.GetProperty("messaging").GetProperty("channelSecret").GetString());
+        Assert.Equal("tok-1", again.Json.GetProperty("messaging").GetProperty("accessToken").GetString());
+        Assert.Equal("jobs-1", again.Json.GetProperty("jobsKey").GetString());
+        Assert.Equal("https://example.com/hook", again.Json.GetProperty("messaging").GetProperty("webhookForwardUrl").GetString());
+
+        // A new channel still needs its secret.
+        Assert.Equal(HttpStatusCode.BadRequest, (await SendAsync(HttpMethod.Put, $"/api/v1/admin/apps/{app.Id}/line-channels",
+            new { type = "Messaging", channelId = NewChannelId(), providerId = "P9" }, Admin)).Status);
+
+        // A channel that did not opt in is only named, never opened.
+        var closed = NewChannelId();
+        await SendAsync(HttpMethod.Put, $"/api/v1/admin/apps/{app.Id}/line-channels", new { type = "Login", channelId = closed, providerId = "P9", channelSecret = "x" }, Admin);
+        var withheld = await SendAsync(HttpMethod.Get, "/api/v1/line/credentials/all", headers: headers);
+        Assert.Equal(2, withheld.Json.GetProperty("channels").GetArrayLength());
+        Assert.Contains(closed, withheld.Json.GetProperty("withheldChannelIds").EnumerateArray().Select(e => e.GetString()));
+
+        // Another app sees nothing of it.
+        var other = await CreateAppAsync();
+        var none = await SendAsync(HttpMethod.Get, "/api/v1/line/credentials/all", headers: [other.AppHeader, other.KeyHeader]);
+        Assert.Equal(0, none.Json.GetProperty("channels").GetArrayLength());
+    }
+
+    [Fact]
     public async Task Line_channel_belongs_to_one_app_and_keeps_its_provider()
     {
         var appA = await CreateAppAsync();

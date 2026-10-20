@@ -16,7 +16,20 @@ public sealed record LineChannelCredentials(
     LineTokenMode? TokenMode,
     string ChannelSecret,
     string? AccessToken,
-    DateTime? AccessTokenExpiresAt);
+    DateTime? AccessTokenExpiresAt,
+    string? LiffId = null,
+    string? JobsKey = null,
+    string? WebhookForwardUrl = null);
+
+/// <summary>Everything LINE for one app in a single answer; Messaging and Login are the first channel of each type.</summary>
+public sealed record LineAppCredentials(
+    string? ProviderId,
+    LineChannelCredentials? Messaging,
+    LineChannelCredentials? Login,
+    string? LiffId,
+    string? JobsKey,
+    IReadOnlyList<LineChannelCredentials> Channels,
+    IReadOnlyList<string> WithheldChannelIds);
 
 /// <summary>
 /// For apps that talk to LINE themselves: send the channel id, get the channel's keys from the database.
@@ -50,22 +63,13 @@ public sealed class LineCredentialsController(
                 "Enable it with allowCredentialAccess=true when registering the channel.");
         }
 
-        IssuedAccessToken? token = channel.Type == LineChannelType.Messaging
-            ? await tokens.GetIssuedAccessTokenAsync(channel, ct)
-            : null;
+        var result = await BuildAsync(channel, ct);
 
         logger.LogInformation("App {App} read credentials of LINE channel {ChannelId}", app.Code, channel.ChannelId);
 
         Response.Headers.CacheControl = "no-store";
         Response.Headers.Pragma = "no-cache";
-        return new LineChannelCredentials(
-            channel.ChannelId,
-            channel.ProviderId,
-            channel.Type,
-            channel.Type == LineChannelType.Messaging ? channel.TokenMode : null,
-            channel.ChannelSecret,
-            token?.Token,
-            token?.ExpiresAt);
+        return result;
     }
 
     /// <summary>
@@ -78,4 +82,52 @@ public sealed class LineCredentialsController(
             ?? throw ApiException.NotFound($"No {type} LINE channel for this app");
         return await Get(channel.ChannelId, ct);
     }
-}
+
+    /// <summary>
+    /// All of the app's LINE settings in one call: every active channel that allows credential access (secret, access token,
+    /// LIFF id, jobs key, webhook forward URL), plus shortcuts to the Messaging and Login channel. Channels that did not opt in
+    /// are listed by id in <c>withheldChannelIds</c> and nothing else about them is returned.
+    /// </summary>
+    [HttpGet("~/api/v1/line/credentials/all")]
+    public async Task<LineAppCredentials> GetAll(CancellationToken ct = default)
+    {
+        var app = tenant.Required;
+        var all = await registry.GetLineChannelsAsync(app.Id, ct);
+        var allowed = all.Where(c => c.AllowCredentialAccess).ToList();
+        var channels = new List<LineChannelCredentials>();
+        foreach (var c in allowed) channels.Add(await BuildAsync(c, ct));
+
+        var messaging = channels.FirstOrDefault(c => c.Type == LineChannelType.Messaging);
+        var login = channels.FirstOrDefault(c => c.Type == LineChannelType.Login);
+        logger.LogInformation("App {App} read credentials of all its LINE channels", app.Code);
+
+        Response.Headers.CacheControl = "no-store";
+        Response.Headers.Pragma = "no-cache";
+        return new LineAppCredentials(
+            (messaging ?? login)?.ProviderId,
+            messaging,
+            login,
+            channels.Select(c => c.LiffId).FirstOrDefault(l => !string.IsNullOrEmpty(l)),
+            channels.Select(c => c.JobsKey).FirstOrDefault(k => !string.IsNullOrEmpty(k)),
+            channels,
+            all.Where(c => !c.AllowCredentialAccess).Select(c => c.ChannelId).ToList());
+    }
+
+    private async Task<LineChannelCredentials> BuildAsync(LineChannelConfig channel, CancellationToken ct)
+    {
+        IssuedAccessToken? token = channel.Type == LineChannelType.Messaging
+            ? await tokens.GetIssuedAccessTokenAsync(channel, ct)
+            : null;
+
+        return new LineChannelCredentials(
+            channel.ChannelId,
+            channel.ProviderId,
+            channel.Type,
+            channel.Type == LineChannelType.Messaging ? channel.TokenMode : null,
+            channel.ChannelSecret,
+            token?.Token,
+            token?.ExpiresAt,
+            channel.LiffId,
+            channel.JobsKey,
+            channel.WebhookForwardUrl);
+    }}

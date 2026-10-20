@@ -74,6 +74,12 @@ public sealed class AppRegistry(IServiceScopeFactory scopeFactory, IMemoryCache 
             return row is null ? null : ToConfig(row);
         }, ct);
 
+    public async Task<IReadOnlyList<LineChannelConfig>> GetLineChannelsAsync(Guid appId, CancellationToken ct = default) =>
+        await GetOrLoadAsync<IReadOnlyList<LineChannelConfig>>($"line:app:{appId}:all", appId, async (db, token) =>
+            (await db.LineChannels.AsNoTracking().Where(x => x.AppId == appId && x.IsActive).OrderBy(x => x.Type).ThenBy(x => x.ChannelId).ToListAsync(token))
+                .Select(ToConfig).ToList(), ct)
+        ?? [];
+
     public void Invalidate(Guid appId)
     {
         if (_evictions.TryRemove(appId, out var cts)) cts.Cancel();
@@ -131,7 +137,9 @@ public sealed class AppRegistry(IServiceScopeFactory scopeFactory, IMemoryCache 
         Decrypt(row.AccessTokenEncrypted),
         row.AssertionKeyId,
         Decrypt(row.AssertionPrivateKeyEncrypted),
-        row.AllowCredentialAccess);
+        row.AllowCredentialAccess,
+        row.LiffId,
+        Decrypt(row.JobsKeyEncrypted));
 
     private string? Decrypt(string? ciphertext) => ciphertext is null ? null : secrets.Unprotect(ciphertext);
 }

@@ -56,6 +56,7 @@ public class MasterDbContext(DbContextOptions<MasterDbContext> options) : DbCont
             e.Property(x => x.TokenMode).HasConversion<string>().HasMaxLength(20);
             e.Property(x => x.AssertionKeyId).HasMaxLength(128);
             e.Property(x => x.WebhookForwardUrl).HasMaxLength(500);
+            e.Property(x => x.LiffId).HasMaxLength(64);
         });
 
         b.Entity<User>(e =>

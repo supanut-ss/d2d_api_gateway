@@ -275,6 +275,13 @@ namespace D2D.Migrations.SqlServer.Migrations
                     b.Property<DateTime?>("IssuedAccessTokenExpiresAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("JobsKeyEncrypted")
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("LiffId")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
+
                     b.Property<string>("ProviderId")
                         .IsRequired()
                         .HasMaxLength(64)

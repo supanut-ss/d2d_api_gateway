@@ -47,6 +47,12 @@ public class LineChannel
     /// </summary>
     public bool AllowCredentialAccess { get; set; }
 
+    /// <summary>LIFF app id (Login channels), e.g. 2012093830-NFqiD1zj. Not secret; handed to the owning app with the other LINE settings.</summary>
+    public string? LiffId { get; set; }
+
+    /// <summary>Key that guards the app's scheduled-job endpoints (/jobs/*). Stored encrypted; returned only to the owning app when credential access is on.</summary>
+    public string? JobsKeyEncrypted { get; set; }
+
     public bool IsActive { get; set; } = true;
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

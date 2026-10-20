@@ -275,6 +275,13 @@ namespace D2D.Migrations.PostgreSql.Migrations
                     b.Property<DateTime?>("IssuedAccessTokenExpiresAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<string>("JobsKeyEncrypted")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LiffId")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("ProviderId")
                         .IsRequired()
                         .HasMaxLength(64)

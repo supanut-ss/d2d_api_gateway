@@ -206,3 +206,5 @@ dialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 12
   .kv dt { margin-top: 10px; }
   .filters input[type="search"] { width: 100%; }
 }
+
+.card + .row { margin-top: 16px; }
