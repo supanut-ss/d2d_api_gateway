@@ -174,13 +174,6 @@ try {
         $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
         if ($code -ne 401) { $problems += "/api/v1/line/credentials (anonymous) returned HTTP $code instead of 401 (is the new endpoint deployed?)" }
     }
-    try {   # /owntracks/* is passed on to payyet: without a key payyet answers 401 (502 = payyet unreachable from here)
-        Invoke-WebRequest -Uri "$PublicBaseUrl/owntracks/latest" -UseBasicParsing -TimeoutSec 30 | Out-Null
-        $problems += "/owntracks/latest answered without a key"
-    } catch {
-        $code = if ($_.Exception.Response) { [int]$_.Exception.Response.StatusCode } else { 0 }
-        if ($code -ne 401) { $problems += "/owntracks/latest (no key) returned HTTP $code instead of 401 (is payyet running at /payyet?)" }
-    }
     if ($problems.Count -gt 0) {
         Write-Warning ("Post-deploy checks reported problems:`n - " + ($problems -join "`n - "))
         throw "Deployment is up but not healthy. Fix the items above."

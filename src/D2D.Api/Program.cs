@@ -12,7 +12,6 @@ builder.Services.AddScoped<AdminAuditFilter>();
 builder.Services.AddApiRateLimiting();
 builder.Services.AddApiSwagger();
 builder.Services.AddProblemDetails();
-builder.Services.AddOwnTracksForwarder();
 builder.Services.AddControllers()
     .AddJsonOptions(o => o.JsonSerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
@@ -64,7 +63,6 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
-app.MapOwnTracksForwarder();   // /owntracks/* -> the payyet application (see Setup/OwnTracksForwarder.cs)
 app.MapHealthChecks("/health");
 
 app.Run();
