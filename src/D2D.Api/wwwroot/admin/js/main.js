@@ -2,6 +2,7 @@ import * as auth from './api.js';
 import {
   actions, setActions, setRerender, html, esc, field, toast, openModal, closeModal, confirmAction, submitModal, copyText, debounce,
 } from './ui.js';
+import { icon } from './icons.js';
 import dashboard from './pages/dashboard.js';
 import apps from './pages/apps.js';
 import users from './pages/users.js';
@@ -11,14 +12,16 @@ import audit from './pages/audit.js';
 
 const root = document.getElementById('app');
 
+// [route key, icon name, label, page builder, sidebar section]
 const NAV = [
-  ['dashboard', '▦', 'Dashboard', dashboard],
-  ['apps', '◫', 'Apps', apps],
-  ['users', '☺', 'Users', users],
-  ['events', '✉', 'LINE events', events],
-  ['admins', '⚿', 'Admins', admins],
-  ['audit', '☰', 'Audit log', audit],
+  ['dashboard', 'dashboard', 'Dashboard', dashboard, 'Overview'],
+  ['apps', 'apps', 'Apps', apps, 'Manage'],
+  ['users', 'users', 'Users', users, 'Manage'],
+  ['events', 'events', 'LINE events', events, 'Manage'],
+  ['admins', 'admins', 'Admins', admins, 'Access'],
+  ['audit', 'audit', 'Audit log', audit, 'Access'],
 ];
+const SECTIONS = [...new Set(NAV.map((n) => n[4]))];
 
 // Actions that work on every screen. A page's own actions are swapped in by setActions().
 const globalActions = {
@@ -39,7 +42,20 @@ async function run(fn, ...args) {
 
 // ---------- event delegation (no inline handlers: the CSP forbids them) ----------
 
+// Dropdown menus (<details class="menu">) close on any click outside them or on one of their items.
+function closeMenus(except) {
+  document.querySelectorAll('details.menu[open]').forEach((d) => { if (d !== except) d.open = false; });
+}
+
+document.addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  closeMenus();
+  document.body.classList.remove('nav-open');
+});
+
 document.addEventListener('click', (e) => {
+  const menu = e.target.closest('details.menu');
+  closeMenus(e.target.closest('details.menu [data-action]') ? null : menu);
   const el = e.target.closest('[data-action]');
   const fn = el && lookup(el.dataset.action);
   if (fn) { e.preventDefault(); run(fn, el, e); }
@@ -87,6 +103,9 @@ async function renderRoute() {
     if (a.dataset.nav === (entry?.[0] ?? '')) a.setAttribute('aria-current', 'page');
     else a.removeAttribute('aria-current');
   });
+  document.body.classList.remove('nav-open');
+  const crumb = document.getElementById('crumb');
+  if (crumb) crumb.textContent = entry ? entry[2] : '';
 
   if (!entry) {
     pageActions = {};
@@ -121,24 +140,42 @@ setRerender(renderRoute);
 
 function showApp() {
   const me = auth.getSession().admin;
+  const role = me.role === 'Admin' ? 'Admin' : 'Viewer (read-only)';
+  const initials = String(me.displayName || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   root.innerHTML = html`<div class="shell">
-    <aside class="sidebar">
-      <div class="brand"><span class="brand-mark">D2D</span> Console</div>
-      <nav class="nav" id="nav">
-        ${NAV.map(([key, icon, label]) => html`<a href="#/${key}" data-nav="${key}"><span class="ico">${icon}</span>${label}</a>`)}
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><span class="brand-mark">D2D</span><span>Console</span></div>
+      <nav class="nav" id="nav" aria-label="Main">
+        ${SECTIONS.map((section) => html`<div class="nav-section">${section}</div>
+          ${NAV.filter((n) => n[4] === section).map(([key, ico, label]) => html`<a href="#/${key}" data-nav="${key}">${icon(ico)}<span>${label}</span></a>`)}`)}
       </nav>
       <div class="sidebar-foot">Central API for all apps</div>
     </aside>
+    <div class="scrim" data-action="shellNavClose" aria-hidden="true"></div>
     <div class="main">
       <header class="topbar">
-        <button class="btn ghost small" data-action="shellTheme" title="Switch light / dark">Theme</button>
-        <div class="who"><strong>${me.displayName}</strong><br><small>${me.role === 'Admin' ? 'Admin' : 'Viewer (read-only)'}</small></div>
-        <button class="btn small" data-action="shellPassword">Password</button>
-        <button class="btn small" data-action="shellSignOut">Sign out</button>
+        <button class="icon-btn nav-toggle" data-action="shellNav" aria-label="Open menu" aria-controls="sidebar">${icon('menu')}</button>
+        <div class="crumb" id="crumb"></div>
+        <span class="spacer"></span>
+        <button class="icon-btn theme-toggle" data-action="shellTheme" aria-label="Switch light / dark" title="Switch light / dark">${icon('moon', 'i-moon')}${icon('sun', 'i-sun')}</button>
+        <details class="menu">
+          <summary aria-label="Account menu">
+            <span class="avatar" aria-hidden="true">${initials}</span>
+            <span class="who"><strong>${me.displayName}</strong><small>${role}</small></span>
+            ${icon('chevron', 'chev')}
+          </summary>
+          <div class="menu-panel" role="menu">
+            <div class="menu-head"><strong>${me.displayName}</strong><small>${role}</small></div>
+            <button class="menu-item" role="menuitem" data-action="shellPassword">${icon('key')}Change password</button>
+            <button class="menu-item" role="menuitem" data-action="shellSignOut">${icon('logout')}Sign out</button>
+          </div>
+        </details>
       </header>
       <main class="content" id="content"></main>
     </div>
   </div>`.s;
+  globalActions.shellNav = () => document.body.classList.add('nav-open');
+  globalActions.shellNavClose = () => document.body.classList.remove('nav-open');
   globalActions.shellTheme = toggleTheme;
   globalActions.shellPassword = changeMyPassword;
   globalActions.shellSignOut = signOut;

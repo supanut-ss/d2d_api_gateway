@@ -1,5 +1,6 @@
 // Small UI toolkit: auto-escaping templates, form helpers, modal, toast, pager.
 // Every value put into html`...` is escaped unless it is already a Safe (a nested html`...`).
+import { icon } from './icons.js';
 
 export class Safe {
   constructor(s) { this.s = s; }
@@ -113,7 +114,8 @@ export function setActions(map) {
 export function toast(message, kind = '') {
   const el = document.createElement('div');
   el.className = 'toast ' + kind;
-  el.textContent = message;
+  el.setAttribute('role', kind === 'bad' ? 'alert' : 'status');
+  el.innerHTML = html`${icon(kind === 'bad' ? 'alert' : 'check')}<span>${message}</span>`.s;
   document.getElementById('toasts').append(el);
   setTimeout(() => el.remove(), kind === 'bad' ? 7000 : 3500);
 }
@@ -136,7 +138,7 @@ export function openModal({ title, body, submitLabel = 'Save', danger = false, w
   const d = document.getElementById('modal');
   d.className = wide ? 'wide' : '';
   d.innerHTML = html`<form data-submit="__modal" autocomplete="off">
-    <header><h2>${title}</h2><button type="button" class="icon-btn" data-action="__closeModal" aria-label="Close">×</button></header>
+    <header><h2>${title}</h2><button type="button" class="icon-btn" data-action="__closeModal" aria-label="Close">${icon('x')}</button></header>
     <div class="modal-body">${body}<p class="form-error" id="modal-error" hidden></p></div>
     <footer>
       ${cancel ? html`<button type="button" class="btn" data-action="__closeModal">${noSubmit ? 'Close' : 'Cancel'}</button>` : ''}
