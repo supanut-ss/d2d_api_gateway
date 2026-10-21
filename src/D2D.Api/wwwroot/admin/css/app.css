@@ -183,6 +183,10 @@ code { background: var(--surface-2); border: 1px solid var(--border); border-rad
 .page-head .sub a { color: var(--muted); }
 .page-head .sub a:hover { color: var(--accent); }
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+/* a field with a button beside it (e.g. Jobs key + Generate): line the button up with the input */
+.row:has(> .field) { align-items: flex-start; }
+.row > .field { flex: 1 1 260px; margin-bottom: 0; }
+.row > .field ~ .btn { margin-top: 31px; }
 .row.end { justify-content: flex-end; }
 .spacer { flex: 1; }
 .mb { margin-bottom: 16px; }
@@ -193,7 +197,7 @@ code { background: var(--surface-2); border: 1px solid var(--border); border-rad
 .card > h2 { margin-bottom: 14px; }
 .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; }
 .card-head a { font-size: 13px; font-weight: 550; }
-.card > .table-wrap.flush { margin: 0 -22px -20px; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); box-shadow: none; }
+.card > .table-wrap:last-child { margin: 0 -22px -20px; border: 0; border-top: 1px solid var(--border); border-radius: 0 0 var(--radius) var(--radius); box-shadow: none; }
 
 .cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 20px; }
 .stat { position: relative; display: block; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px 18px 18px; color: inherit; transition: border-color .15s var(--ease), box-shadow .2s var(--ease), transform .2s var(--ease); }
@@ -228,14 +232,17 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
 th { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; background: var(--surface-2); white-space: nowrap; }
 td { font-variant-numeric: tabular-nums; }
-td .mono, td strong { white-space: nowrap; }
+td .mono, td strong, td code { white-space: nowrap; overflow-wrap: normal; }
 tbody tr { transition: background-color .12s var(--ease); }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 45%, transparent); }
+tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
 td a strong { color: var(--text); }
 td a:hover strong { color: var(--accent); }
 td .badge + .badge { margin-left: 4px; }
-td.actions { text-align: right; white-space: nowrap; }
+/* row buttons stay in view when a wide table scrolls sideways */
+td.actions { text-align: right; white-space: nowrap; position: sticky; right: 0; background: var(--surface); box-shadow: inset 1px 0 0 var(--border); }
+tbody tr:hover td.actions { background: inherit; }
+.table-wrap + p { margin-top: 12px; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; color: var(--muted); font-size: 13px; }
 
 /* ---------- controls ---------- */
@@ -361,7 +368,8 @@ dialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14
   .kv dd { padding-top: 2px; }
   .filters input[type="search"], .filters select { width: 100%; }
   .card { padding: 18px 16px; }
-  .card > .table-wrap.flush { margin: 0 -16px -18px; }
+  .card > .table-wrap:last-child { margin: 0 -16px -18px; }
+  .row > .field ~ .btn { margin-top: 0; }
   .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .stat { padding: 14px; }
   .stat .value { font-size: 24px; }

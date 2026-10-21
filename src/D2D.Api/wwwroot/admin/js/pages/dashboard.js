@@ -36,7 +36,7 @@ export default async function dashboard() {
         <div class="card-head"><h2>Apps</h2><a href="#/apps">View all</a></div>
         ${s.perApp.length === 0
           ? html`<div class="empty">No app yet. <a href="#/apps">Register the first one</a>.</div>`
-          : html`<div class="table-wrap flush"><table>
+          : html`<div class="table-wrap"><table>
               <thead><tr><th>App</th><th>Status</th><th>Members</th><th>LINE channels</th><th>Sessions</th></tr></thead>
               <tbody>${s.perApp.map((a) => html`<tr>
                 <td><a href="#/apps/${a.appId}"><strong>${a.name}</strong></a><br><span class="muted mono">${a.code}</span></td>

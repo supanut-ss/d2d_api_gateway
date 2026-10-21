@@ -1,5 +1,6 @@
 import { api } from '../api.js';
 import { html, badge, fmtDate, qs, pager, go, rerender } from '../ui.js';
+import { icon } from '../icons.js';
 
 const PAGE = 50;
 
@@ -24,7 +25,7 @@ export default async function audit(segs, query) {
     view: html`
       <div class="page-head">
         <div><h1>Audit log</h1><div class="sub">Every change made through the admin API — who, what and when. Request contents are never recorded.</div></div>
-        <button class="btn" data-action="refresh">Refresh</button>
+        <button class="btn" data-action="refresh">${icon('refresh')}Refresh</button>
       </div>
       <div class="filters">
         <input type="search" placeholder="Search by admin, path or method" value="${q}" data-input="search" aria-label="Search audit log">

@@ -1,5 +1,6 @@
 import { api, canWrite } from '../api.js';
 import { html, badge, fmtDate, select, qs, pager, openModal, toast, go, rerender } from '../ui.js';
+import { icon } from '../icons.js';
 
 const PAGE = 25;
 const STATUS_KIND = { Pending: 'warn', Processing: 'info', Processed: 'ok', Failed: 'bad' };
@@ -62,7 +63,7 @@ export default async function events(segs, query) {
     view: html`
       <div class="page-head">
         <div><h1>LINE events</h1><div class="sub">Webhook events received from LINE, waiting or already handled</div></div>
-        <button class="btn" data-action="refresh">Refresh</button>
+        <button class="btn" data-action="refresh">${icon('refresh')}Refresh</button>
       </div>
       <div class="filters">
         <select data-change="filter" data-key="status" aria-label="Status">
