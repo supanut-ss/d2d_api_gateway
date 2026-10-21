@@ -122,7 +122,7 @@ async function renderRoute() {
     pageActions = page.actions ?? {};
     setActions(pageActions);
     content.innerHTML = page.view.s;
-    document.title = (page.title ? page.title + ' · ' : '') + 'D2D Console';
+    document.title = (page.title ? page.title + ' · ' : '') + 'drivetodev console';
     page.onMount?.(content);
   } catch (e) {
     if (token !== renderToken) return;
@@ -144,7 +144,7 @@ function showApp() {
   const initials = String(me.displayName || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]).join('').toUpperCase();
   root.innerHTML = html`<div class="shell">
     <aside class="sidebar" id="sidebar">
-      <div class="brand"><span class="brand-mark">D2D</span><span>Console</span></div>
+      <div class="brand"><img class="brand-mark" src="img/logo.svg" alt="" width="36" height="36"><span class="brand-text"><strong>drivetodev</strong><small>console</small></span></div>
       <nav class="nav" id="nav" aria-label="Main">
         ${SECTIONS.map((section) => html`<div class="nav-section">${section}</div>
           ${NAV.filter((n) => n[4] === section).map(([key, ico, label]) => html`<a href="#/${key}" data-nav="${key}">${icon(ico)}<span>${label}</span></a>`)}`)}
@@ -218,7 +218,7 @@ async function showLogin(notice = '') {
   pageActions = {};
   const setup = await auth.setupRequired();
   root.innerHTML = html`<div class="auth-wrap"><div class="auth-card">
-    <div class="brand"><span class="brand-mark">D2D</span> Console</div>
+    <div class="brand"><img class="brand-mark" src="img/logo.svg" alt="" width="36" height="36"><span class="brand-text"><strong>drivetodev</strong><small>console</small></span></div>
     ${setup
       ? html`<h1>First-time setup</h1>
         <p class="muted">No admin exists yet. Create the first one. Proof that you own this server is the <code>Admin:ApiKey</code> from its configuration (used once, not stored).</p>
@@ -240,7 +240,7 @@ async function showLogin(notice = '') {
           <button class="btn primary">Sign in</button>
         </form>`}
   </div></div>`.s;
-  document.title = 'Sign in · D2D Console';
+  document.title = 'Sign in · drivetodev console';
 
   const fail = (e) => {
     const box = document.getElementById('auth-error');
