@@ -3,6 +3,7 @@ import {
   html, raw, badge, yesNo, fmtDate, field, area, select, check, lines, csv, qs, pager,
   openModal, confirmAction, showSecret, toast, go, rerender,
 } from '../ui.js';
+import { iconButton } from '../icons.js';
 
 const TABS = [['settings', 'Settings'], ['members', 'Members'], ['channels', 'LINE channels'], ['database', 'Database']];
 const PAGE = 25;
@@ -175,8 +176,8 @@ async function members(app, write, query) {
               <td>${badge(m.isActive ? 'Active' : 'Disabled', m.isActive ? 'ok' : 'bad')}</td>
               <td>${fmtDate(m.lastLoginAt)}</td>
               <td class="actions">${write ? html`
-                <button class="btn small" data-action="editRoles" data-id="${m.userId}" data-name="${m.displayName}" data-roles="${m.roles.join(', ')}">Roles</button>
-                <button class="btn small" data-action="removeMember" data-id="${m.userId}" data-name="${m.displayName}">Remove</button>` : ''}</td>
+                ${iconButton('tag', 'Edit roles', { data: { action: 'editRoles', id: m.userId, name: m.displayName, roles: m.roles.join(', ') } })}
+                ${iconButton('trash', 'Remove member', { danger: true, data: { action: 'removeMember', id: m.userId, name: m.displayName } })}` : ''}</td>
             </tr>`)}</tbody>
           </table></div>
           ${pager({ skip, take: PAGE, total: data.total })}`}`,
@@ -367,23 +368,24 @@ async function channels(app, write, query = {}) {
       ${app.lineChannels.length === 0
         ? html`<div class="card empty">No LINE channel yet. Add the Messaging API channel of the bot and/or the LINE Login channel of the LIFF app.</div>`
         : html`<div class="table-wrap"><table>
-            <thead><tr><th>Provider</th><th>Channel</th><th>Type</th><th>Token</th><th>LIFF ID</th><th>Webhook URL (paste into LINE)</th><th>Keys for app</th><th>Jobs key</th><th></th></tr></thead>
+            <thead><tr><th>Channel</th><th>Type</th><th>Webhook URL (paste into LINE) / LIFF ID</th><th>App access</th><th></th></tr></thead>
             <tbody>${app.lineChannels.map((ch) => html`<tr>
-              <td><code>${ch.providerId}</code></td>
-              <td><code>${ch.channelId}</code>${ch.isActive ? '' : html`<br>${badge('Inactive', 'bad')}`}</td>
-              <td>${badge(ch.type, ch.type === 'Messaging' ? 'info' : 'warn')}</td>
-              <td>${ch.type === 'Messaging' ? badge(ch.tokenMode) : '—'}${ch.issuedTokenExpiresAt ? html`<br><span class="muted">issued token until ${fmtDate(ch.issuedTokenExpiresAt)}</span>` : ''}</td>
-              <td>${ch.liffId ? html`<code>${ch.liffId}</code>` : '—'}</td>
+              <td><div class="stack"><code>${ch.channelId}</code><span class="muted">provider ${ch.providerId}</span>${ch.isActive ? '' : badge('Inactive', 'bad')}</div></td>
+              <td><div class="stack">${badge(ch.type, ch.type === 'Messaging' ? 'info' : 'warn')}
+                ${ch.type === 'Messaging' ? html`<span class="muted">token: ${ch.tokenMode}</span>` : ''}
+                ${ch.issuedTokenExpiresAt ? html`<span class="muted">issued token until ${fmtDate(ch.issuedTokenExpiresAt)}</span>` : ''}</div></td>
               <td>${ch.type === 'Messaging'
-                ? html`<code>${url(ch)}</code> <button class="btn small ghost" data-action="__copy" data-copy="${url(ch)}">Copy</button>
-                    ${ch.webhookForwardUrl ? html`<br><span class="muted">forwards to ${ch.webhookForwardUrl}</span>` : ''}`
-                : '—'}</td>
-              <td>${yesNo(ch.allowCredentialAccess, 'Allowed', 'Off')}</td>
-              <td>${yesNo(ch.hasJobsKey, 'Set', 'Not set')}</td>
+                ? html`<div class="url-cell"><code class="url">${url(ch)}</code>${iconButton('copy', 'Copy webhook URL', { data: { action: '__copy', copy: url(ch) } })}</div>
+                    ${ch.webhookForwardUrl ? html`<span class="muted url">forwards to ${ch.webhookForwardUrl}</span>` : ''}`
+                : ch.liffId ? html`<span class="muted">LIFF ID</span> <code>${ch.liffId}</code>` : '—'}</td>
+              <td><div class="stack">
+                <span><span class="muted">Keys</span> ${yesNo(ch.allowCredentialAccess, 'Allowed', 'Off')}</span>
+                <span><span class="muted">Jobs key</span> ${yesNo(ch.hasJobsKey, 'Set', 'Not set')}</span>
+              </div></td>
               <td class="actions">
-                ${ch.type === 'Messaging' && write ? html`<button class="btn small" data-action="verifyChannel" data-id="${ch.channelId}">Test</button>` : ''}
-                ${write ? html`<a class="btn small" href="${back}?edit=${ch.channelId}">Edit</a>
-                  <button class="btn small" data-action="deleteChannel" data-id="${ch.channelId}">Delete</button>` : ''}
+                ${ch.type === 'Messaging' && write ? iconButton('zap', 'Test channel', { data: { action: 'verifyChannel', id: ch.channelId } }) : ''}
+                ${write ? html`${iconButton('edit', 'Edit channel', { href: `${back}?edit=${ch.channelId}` })}
+                  ${iconButton('trash', 'Delete channel', { danger: true, data: { action: 'deleteChannel', id: ch.channelId } })}` : ''}
               </td>
             </tr>`)}</tbody>
           </table></div>`}`,

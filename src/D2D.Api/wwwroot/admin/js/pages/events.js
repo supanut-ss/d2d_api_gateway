@@ -1,6 +1,6 @@
 import { api, canWrite } from '../api.js';
 import { html, badge, fmtDate, select, qs, pager, openModal, toast, go, rerender } from '../ui.js';
-import { icon } from '../icons.js';
+import { icon, iconButton } from '../icons.js';
 
 const PAGE = 25;
 const STATUS_KIND = { Pending: 'warn', Processing: 'info', Processed: 'ok', Failed: 'bad' };
@@ -86,8 +86,8 @@ export default async function events(segs, query) {
               <td>${e.eventType}</td>
               <td>${badge(e.status, STATUS_KIND[e.status])}</td>
               <td>${e.attempts}</td>
-              <td class="muted">${e.lastError ? e.lastError.slice(0, 80) : ''}</td>
-              <td class="actions"><button class="btn small" data-action="openEvent" data-id="${e.id}">Open</button></td>
+              <td class="muted wrap">${e.lastError ? e.lastError.slice(0, 80) : ''}</td>
+              <td class="actions">${iconButton('eye', 'Open event', { data: { action: 'openEvent', id: e.id } })}</td>
             </tr>`)}</tbody>
           </table></div>
           ${pager({ skip, take: PAGE, total: data.total })}`}`,

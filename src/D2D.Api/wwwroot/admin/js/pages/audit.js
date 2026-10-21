@@ -1,10 +1,11 @@
 import { api } from '../api.js';
-import { html, badge, fmtDate, qs, pager, go, rerender } from '../ui.js';
+import { html, raw, badge, fmtDate, qs, pager, go, rerender } from '../ui.js';
 import { icon } from '../icons.js';
 
 const PAGE = 50;
 
-const METHOD_KIND = { POST: 'ok', PUT: 'info', DELETE: 'bad' };
+// Long API paths may break after a slash, never inside an id.
+const pathWithBreaks = (path) => String(path).split('/').map((part, i) => html`${i ? raw('/<wbr>') : ''}${part}`);
 
 export default async function audit(segs, query) {
   const skip = Number(query.skip) || 0;
@@ -37,7 +38,7 @@ export default async function audit(segs, query) {
             <tbody>${data.items.map((r) => html`<tr>
               <td>${fmtDate(r.at)}</td>
               <td>${r.actor === 'admin-key' ? badge('admin key', 'warn') : r.actor}</td>
-              <td>${badge(r.method, METHOD_KIND[r.method] || '')} <code>${r.path}</code></td>
+              <td class="wrap"><span class="method m-${r.method}">${r.method}</span><code>${pathWithBreaks(r.path)}</code></td>
               <td class="muted">${r.ip || '—'}</td>
             </tr>`)}</tbody>
           </table></div>

@@ -148,7 +148,7 @@ code { background: var(--surface-2); border: 1px solid var(--border); border-rad
 .crumb { font-weight: 600; color: var(--text-2); }
 .topbar .nav-toggle { display: none; }
 .scrim { display: none; }
-.content { padding: 28px 32px 72px; max-width: 1320px; width: 100%; }
+.content { padding: 28px 32px 72px; width: 100%; }
 
 /* theme toggle shows the icon of the theme it switches to */
 .theme-toggle .i-sun { display: none; }
@@ -227,21 +227,33 @@ a.stat:hover { border-color: var(--border-strong); box-shadow: 0 8px 24px -10px 
 .kv dd { margin: 0; overflow-wrap: anywhere; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
 /* ---------- table ---------- */
-.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+/* Minimal: no header fill, hairline row dividers, quiet cell content; colour is kept for status only. */
+.table-wrap { overflow-x: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 table { width: 100%; border-collapse: collapse; }
-th, td { text-align: left; padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-th { font-size: 11.5px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; background: var(--surface-2); white-space: nowrap; }
-td { font-variant-numeric: tabular-nums; }
+th, td { text-align: left; padding: 14px 16px; vertical-align: middle; }
+th { font-size: 12.5px; font-weight: 500; color: var(--muted); white-space: nowrap; padding-top: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--border); }
+td { font-variant-numeric: tabular-nums; border-bottom: 1px solid color-mix(in srgb, var(--border) 60%, transparent); color: var(--text-2); white-space: nowrap; }
+/* cells holding free text (errors, paths) may wrap */
+td.wrap, td .wrap { white-space: normal; overflow-wrap: anywhere; }
+td.wrap code { white-space: normal; overflow-wrap: break-word; }
+.method { display: inline-block; min-width: 52px; margin-right: 6px; font: 600 11.5px/1 var(--mono); letter-spacing: .02em; color: var(--muted); }
+.method.m-POST { color: var(--success); }
+.method.m-PUT { color: var(--accent); }
+.method.m-DELETE { color: var(--danger); }
 td .mono, td strong, td code { white-space: nowrap; overflow-wrap: normal; }
+td strong { color: var(--text); font-weight: 600; }
+td code { background: none; border: 0; padding: 0; color: var(--text-2); }
 tbody tr { transition: background-color .12s var(--ease); }
 tbody tr:last-child td { border-bottom: 0; }
-tbody tr:hover { background: color-mix(in srgb, var(--accent-soft) 45%, var(--surface)); }
+tbody tr:hover { background: var(--surface-2); }
 td a strong { color: var(--text); }
 td a:hover strong { color: var(--accent); }
 td .badge + .badge { margin-left: 4px; }
-/* row buttons stay in view when a wide table scrolls sideways */
-td.actions { text-align: right; white-space: nowrap; position: sticky; right: 0; background: var(--surface); box-shadow: inset 1px 0 0 var(--border); }
-tbody tr:hover td.actions { background: inherit; }
+/* statuses read as a coloured dot + word; neutral tags become a thin outline */
+td .badge.ok, td .badge.bad, td .badge.warn { background: none; padding: 0; }
+td .badge:not(.ok):not(.bad):not(.warn):not(.info) { background: none; box-shadow: inset 0 0 0 1px var(--border-strong); color: var(--muted); font-weight: 500; }
+td.actions { text-align: right; white-space: nowrap; }
+td .btn.icon { border-color: transparent; background: transparent; box-shadow: none; }
 .table-wrap + p { margin-top: 12px; }
 .pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 14px; color: var(--muted); font-size: 13px; }
 
@@ -259,6 +271,20 @@ tbody tr:hover td.actions { background: inherit; }
 .btn.ghost { border-color: transparent; background: transparent; box-shadow: none; color: var(--accent); }
 .btn.ghost:hover { background: var(--accent-soft); }
 .btn.small { min-height: 30px; padding: 4px 10px; font-size: 12.5px; border-radius: 7px; }
+/* square icon-only button (table rows); its label is in aria-label/title */
+.btn.icon { width: 32px; height: 32px; min-height: 32px; padding: 0; border-radius: 7px; color: var(--muted); }
+.btn.icon .i { width: 16px; height: 16px; }
+.btn.icon:hover { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--border-strong)); background: var(--accent-soft); }
+.btn.icon.danger-hover:hover { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border-strong)); background: var(--danger-soft); }
+.btn.icon[aria-busy="true"] .i { display: none; }
+td .btn.icon + .btn.icon { margin-left: 4px; }
+/* long URLs in a cell may wrap so the table fits and the row buttons stay in the row */
+td .url { display: block; max-width: 320px; white-space: normal; overflow-wrap: anywhere; }
+td .stack { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+td .stack .muted { font-size: 12.5px; }
+td .stack > span { display: inline-flex; align-items: center; gap: 6px; }
+.url-cell { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 4px; }
+.url-cell .btn.icon { flex: none; width: 28px; height: 28px; min-height: 28px; }
 .btn[disabled] { opacity: .5; pointer-events: none; }
 .btn[aria-busy="true"] { pointer-events: none; opacity: .8; }
 .btn[aria-busy="true"]::before { content: ""; width: 14px; height: 14px; border-radius: 50%; border: 2px solid currentColor; border-right-color: transparent; animation: spin .7s linear infinite; }
@@ -382,5 +408,6 @@ dialog footer { display: flex; justify-content: flex-end; gap: 10px; padding: 14
   input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="url"], input[type="number"], select, textarea { font-size: 16px; min-height: 44px; }
   .btn { min-height: 44px; }
   .btn.small { min-height: 36px; }
+  .btn.icon { width: 40px; height: 40px; min-height: 40px; }
 }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }

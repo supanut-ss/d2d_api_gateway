@@ -1,5 +1,5 @@
 // Inline SVG icons (Lucide/Feather shapes). Stroke colour follows currentColor; styled by .i in app.css.
-import { raw } from './ui.js';
+import { raw, esc } from './ui.js';
 
 const PATHS = {
   dashboard: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
@@ -20,9 +20,29 @@ const PATHS = {
   logout: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
   refresh: '<polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>',
   chevron: '<polyline points="6 9 12 15 18 9"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  zap: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  tag: '<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  copy: '<rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>',
 };
 
 /** Returns a decorative (aria-hidden) SVG icon; pair it with visible text or an aria-label on the control. */
 export function icon(name, cls = '') {
   return raw(`<svg class="i${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${PATHS[name] ?? ''}</svg>`);
+}
+
+/**
+ * Square icon-only button for table rows. The label becomes its accessible name and hover tooltip.
+ * data: { action: 'editRoles', id: '…' } → data-action="editRoles" data-id="…"; pass href to render a link instead.
+ * danger: true tints it red on hover (delete / remove).
+ */
+export function iconButton(name, label, { data = {}, href = '', danger = false } = {}) {
+  const attrs = Object.entries(data).map(([k, v]) => ` data-${k}="${esc(v)}"`).join('');
+  const cls = `btn icon${danger ? ' danger-hover' : ''}`;
+  const common = `class="${cls}" aria-label="${esc(label)}" title="${esc(label)}"${attrs}`;
+  return href
+    ? raw(`<a ${common} href="${esc(href)}">${icon(name).s}</a>`)
+    : raw(`<button type="button" ${common}>${icon(name).s}</button>`);
 }

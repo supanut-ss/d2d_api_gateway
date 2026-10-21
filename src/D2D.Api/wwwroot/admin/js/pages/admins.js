@@ -1,5 +1,6 @@
 import { api, canWrite, getSession } from '../api.js';
 import { html, badge, fmtDate, field, select, openModal, confirmAction, toast, rerender } from '../ui.js';
+import { iconButton } from '../icons.js';
 
 const ROLES = [['Admin', 'Admin — can change everything'], ['Viewer', 'Viewer — can only look']];
 
@@ -81,8 +82,8 @@ export default async function admins() {
           <td>${badge(a.isActive ? 'Active' : 'Disabled', a.isActive ? 'ok' : 'bad')}</td>
           <td>${fmtDate(a.lastLoginAt)}</td>
           <td class="actions">${write ? html`
-            <button class="btn small" data-action="editAdmin" data-id="${a.id}">Edit</button>
-            <button class="btn small" data-action="resetAdminPassword" data-id="${a.id}">Set password</button>` : ''}</td>
+            ${iconButton('edit', 'Edit admin', { data: { action: 'editAdmin', id: a.id } })}
+            ${iconButton('key', 'Set password', { data: { action: 'resetAdminPassword', id: a.id } })}` : ''}</td>
         </tr>`)}</tbody>
       </table></div>
       <p class="muted">The static <code>Admin:ApiKey</code> from the server configuration still works for scripts and as a way back in. Keep it secret.</p>`,
