@@ -12,9 +12,7 @@ appsettings.Production.json
 *.pem
 publish/
 
-# Deploy: local credentials, staging, cache
-deploy.credentials.ps1
-deploy-single-host.local.ps1
+# Deploy: staging and upload cache (FTP login: ftp-deploy/.gitignore)
 deploy/app/
 deploy/offline/
 .deploy-cache/
