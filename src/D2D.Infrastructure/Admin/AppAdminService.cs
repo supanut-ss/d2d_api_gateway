@@ -200,48 +200,19 @@ public sealed class AppAdminService(
     {
         if (!await db.Apps.AnyAsync(a => a.Id == id, ct)) throw ApiException.NotFound("App not found");
 
-        var channel = await db.LineChannels.FirstOrDefaultAsync(x => x.ChannelId == request.ChannelId, ct);
-        if (channel is not null && channel.AppId != id) throw ApiException.Conflict("LINE channel belongs to another app");
-        // LINE cannot move a channel to another provider, and user identities are keyed by provider.
-        if (channel is not null && channel.ProviderId != request.ProviderId)
-            throw ApiException.Conflict("ProviderId of an existing channel cannot change");
-        if (channel is null)
-        {
-            channel = new LineChannel { AppId = id, ChannelId = request.ChannelId, ProviderId = request.ProviderId };
-            db.LineChannels.Add(channel);
-        }
+        var channel = await FindOrAddLineChannelAsync(id, request, ct);
 
         // Secrets are never shown again, so a blank value on an existing channel keeps what is stored.
-        var existing = channel.ChannelSecretEncrypted is not null;
-        if (string.IsNullOrEmpty(request.ChannelSecret) && !existing) throw ApiException.BadRequest("ChannelSecret is required");
+        if (string.IsNullOrEmpty(request.ChannelSecret) && channel.ChannelSecretEncrypted is null)
+            throw ApiException.BadRequest("ChannelSecret is required");
         var keepToken = string.IsNullOrEmpty(request.AccessToken) && channel.AccessTokenEncrypted is not null;
         var keepKey = string.IsNullOrEmpty(request.AssertionPrivateKey) && channel.AssertionPrivateKeyEncrypted is not null;
         var mode = ResolveTokenMode(request, keepToken, keepKey);
 
         channel.Type = request.Type;
         if (!string.IsNullOrEmpty(request.ChannelSecret)) channel.ChannelSecretEncrypted = secrets.Protect(request.ChannelSecret);
-        channel.TokenMode = mode;
-        if (mode != LineTokenMode.Static) channel.AccessTokenEncrypted = null;
-        else if (!string.IsNullOrEmpty(request.AccessToken)) channel.AccessTokenEncrypted = secrets.Protect(request.AccessToken);
-        if (mode != LineTokenMode.JwtAssertion)
-        {
-            channel.AssertionKeyId = null;
-            channel.AssertionPrivateKeyEncrypted = null;
-        }
-        else
-        {
-            channel.AssertionKeyId = string.IsNullOrEmpty(request.AssertionKeyId) ? channel.AssertionKeyId : request.AssertionKeyId;
-            if (!string.IsNullOrEmpty(request.AssertionPrivateKey)) channel.AssertionPrivateKeyEncrypted = secrets.Protect(request.AssertionPrivateKey);
-        }
-        // Credentials changed: never reuse a token issued with the old ones.
-        channel.IssuedAccessTokenEncrypted = null;
-        channel.IssuedAccessTokenExpiresAt = null;
-        channel.WebhookForwardUrl = string.IsNullOrWhiteSpace(request.WebhookForwardUrl) ? null : request.WebhookForwardUrl;
-        channel.AllowCredentialAccess = request.AllowCredentialAccess;
-        channel.LiffId = string.IsNullOrWhiteSpace(request.LiffId) ? null : request.LiffId.Trim();
-        if (!string.IsNullOrEmpty(request.JobsKey)) channel.JobsKeyEncrypted = secrets.Protect(request.JobsKey);
-        channel.IsActive = request.IsActive;
-        channel.UpdatedAt = clock.GetUtcNow().UtcDateTime;
+        ApplyTokenCredentials(channel, request, mode);
+        ApplyChannelSettings(channel, request);
         await db.SaveChangesAsync(ct);
         registry.Invalidate(id);
         return ToSummary(channel);
@@ -269,6 +240,57 @@ public sealed class AppAdminService(
 
     private static IQueryable<App> WithDetails(IQueryable<App> apps) =>
         apps.Include(a => a.Database).Include(a => a.RedirectUris).Include(a => a.LineChannels).AsSplitQuery();
+
+    private async Task<LineChannel> FindOrAddLineChannelAsync(Guid appId, UpsertLineChannelRequest request, CancellationToken ct)
+    {
+        var channel = await db.LineChannels.FirstOrDefaultAsync(x => x.ChannelId == request.ChannelId, ct);
+        if (channel is null)
+        {
+            channel = new LineChannel { AppId = appId, ChannelId = request.ChannelId, ProviderId = request.ProviderId };
+            db.LineChannels.Add(channel);
+            return channel;
+        }
+
+        if (channel.AppId != appId) throw ApiException.Conflict("LINE channel belongs to another app");
+        // LINE cannot move a channel to another provider, and user identities are keyed by provider.
+        if (channel.ProviderId != request.ProviderId)
+            throw ApiException.Conflict("ProviderId of an existing channel cannot change");
+        return channel;
+    }
+
+    /// <summary>Stores what the chosen token mode needs and clears what it does not. Blank secrets keep the stored value.</summary>
+    private void ApplyTokenCredentials(LineChannel channel, UpsertLineChannelRequest request, LineTokenMode mode)
+    {
+        channel.TokenMode = mode;
+
+        if (mode != LineTokenMode.Static) channel.AccessTokenEncrypted = null;
+        else if (!string.IsNullOrEmpty(request.AccessToken)) channel.AccessTokenEncrypted = secrets.Protect(request.AccessToken);
+
+        if (mode != LineTokenMode.JwtAssertion)
+        {
+            channel.AssertionKeyId = null;
+            channel.AssertionPrivateKeyEncrypted = null;
+        }
+        else
+        {
+            channel.AssertionKeyId = string.IsNullOrEmpty(request.AssertionKeyId) ? channel.AssertionKeyId : request.AssertionKeyId;
+            if (!string.IsNullOrEmpty(request.AssertionPrivateKey)) channel.AssertionPrivateKeyEncrypted = secrets.Protect(request.AssertionPrivateKey);
+        }
+
+        // Credentials changed: never reuse a token issued with the old ones.
+        channel.IssuedAccessTokenEncrypted = null;
+        channel.IssuedAccessTokenExpiresAt = null;
+    }
+
+    private void ApplyChannelSettings(LineChannel channel, UpsertLineChannelRequest request)
+    {
+        channel.WebhookForwardUrl = string.IsNullOrWhiteSpace(request.WebhookForwardUrl) ? null : request.WebhookForwardUrl;
+        channel.AllowCredentialAccess = request.AllowCredentialAccess;
+        channel.LiffId = string.IsNullOrWhiteSpace(request.LiffId) ? null : request.LiffId.Trim();
+        if (!string.IsNullOrEmpty(request.JobsKey)) channel.JobsKeyEncrypted = secrets.Protect(request.JobsKey);
+        channel.IsActive = request.IsActive;
+        channel.UpdatedAt = clock.GetUtcNow().UtcDateTime;
+    }
 
     private static async Task PrepareDatabaseAsync(SetDatabaseRequest request, CancellationToken ct)
     {
