@@ -1,14 +1,4 @@
 # Deploy the D2D gateway to https://gateway.drivetodev.online
-# FTP credentials come from deploy.credentials.ps1 (git-ignored; template: deploy.credentials.example.ps1).
+# FTP login: ftp-deploy\ftp-deploy.settings.psd1 (git-ignored; template: ftp-deploy\ftp-deploy.settings.example.psd1).
 $ErrorActionPreference = "Stop"
-. "$PSScriptRoot\deploy.credentials.ps1"
-if ([string]::IsNullOrWhiteSpace([string]$D2D_DEPLOY_FTP_SERVER) -or [string]::IsNullOrWhiteSpace([string]$D2D_DEPLOY_FTP_USERNAME) -or [string]::IsNullOrWhiteSpace([string]$D2D_DEPLOY_FTP_PASSWORD)) {
-    throw "FTP credentials are incomplete in deploy.credentials.ps1."
-}
-$deployParameters = @{
-    Server    = $D2D_DEPLOY_FTP_SERVER
-    Username  = $D2D_DEPLOY_FTP_USERNAME
-    Password  = $D2D_DEPLOY_FTP_PASSWORD
-    StdoutLog = $true      # keep ANCM stdout logs; remove once stable
-}
-& "$PSScriptRoot\deploy-single-host.core.ps1" @deployParameters @args
+& "$PSScriptRoot\deploy-single-host.core.ps1" -StdoutLog @args   # keep ANCM stdout logs; remove once stable

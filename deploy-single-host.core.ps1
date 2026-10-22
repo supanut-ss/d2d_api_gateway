@@ -7,12 +7,15 @@
       - delete anything on the server (no pruning): the sub-applications (joddaily, payyet, booksabuy ...) are folders below the
         site root and must stay untouched. Stale files from older versions are left in place.
     Dry run (connects read-only, changes nothing remote): $env:D2D_DEPLOY_DRY_RUN = "1"
+
+    FTP login and upload options live in ftp-deploy\ftp-deploy.settings.psd1 (see ftp-deploy\README.md);
+    -Server / -Username / -Password override it for one run.
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string]$Server,
-    [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string]$Username,
-    [Parameter(Mandatory = $true)] [ValidateNotNullOrEmpty()] [string]$Password,
+    [string]$Server,
+    [string]$Username,
+    [string]$Password,
 
     # FTP path relative to the FTP login root. Pinned below on purpose.
     [string]$RemotePath = "gateway.drivetodev.online",
@@ -42,23 +45,15 @@ if ($PublicBaseUrl -ne "https://gateway.drivetodev.online") {
     throw "Refusing to deploy: PublicBaseUrl must be 'https://gateway.drivetodev.online' (got '$PublicBaseUrl')."
 }
 
-$pwsh = if (Get-Command powershell -ErrorAction SilentlyContinue) { "powershell" } else { "pwsh" }
-$uploader = Join-Path $repoRoot "upload-ftp.ps1"
-$dryArgs = @(); if ($dryRun) { $dryArgs = @("-DryRun") }
+Import-Module (Join-Path $repoRoot "ftp-deploy\FtpDeploy") -Force
+$connection = @{}
+foreach ($name in 'Server', 'Username', 'Password') {
+    if ($PSBoundParameters.ContainsKey($name)) { $connection[$name] = $PSBoundParameters[$name] }
+}
+$ftp = Get-FtpSettings -Override $connection
 
 function Assert-RemoteFolder([string]$Path) {
-    try {
-        $req = [System.Net.FtpWebRequest]::Create("ftp://$Server/")
-        $req.Method = [System.Net.WebRequestMethods+Ftp]::ListDirectory
-        $req.Credentials = New-Object System.Net.NetworkCredential($Username, $Password)
-        $req.UsePassive = $true
-        $resp = $req.GetResponse()
-        $reader = New-Object System.IO.StreamReader($resp.GetResponseStream())
-        $names = $reader.ReadToEnd() -split "`r?`n" | ForEach-Object { ($_.Trim().Replace('\', '/').TrimEnd('/') -split '/')[-1] }
-        $reader.Close(); $resp.Close()
-    }
-    catch { throw "Cannot list ftp://$Server/ : $($_.Exception.Message)" }
-    if ($names -notcontains $Path) { throw "Remote folder '$Path' does not exist on ftp://$Server/." }
+    if (-not (Test-FtpRemoteFolder -Settings $ftp -Name $Path)) { throw "Remote folder '$Path' does not exist on ftp://$($ftp.Server)/." }
 }
 
 # dotnet runs from a neutral folder: global.json in the repo pins SDK 8.0.x, which is not installed on every machine
@@ -120,30 +115,25 @@ Copy-Item -LiteralPath $templatePath -Destination $offlinePath -Force
 
 $manifestPath = Join-Path $repoRoot ".deploy-cache\gateway-manifest.json"
 function Send-Offline {
-    & $pwsh -NoProfile -ExecutionPolicy Bypass -File $uploader -Server $Server -Username $Username -Password $Password `
-        -LocalPath $offlineDir -RemotePath $target @dryArgs
+    Invoke-FtpSync -Settings $ftp -LocalPath $offlineDir -RemotePath $target -DryRun:$dryRun | Out-Null
 }
 
 $deployed = $false
 try {
     Write-Host "3. Taking the gateway offline..." -ForegroundColor Yellow
     Send-Offline
-    if ($LASTEXITCODE -ne 0) { throw "Taking the application offline failed (exit code $LASTEXITCODE)." }
     if (-not $dryRun) { Write-Host "Waiting $OfflineDrainSeconds s for IIS to release files..."; Start-Sleep -Seconds $OfflineDrainSeconds }
 
-    Write-Host "4. Uploading application files to ftp://$Server/$target (no pruning) ..." -ForegroundColor Yellow
-    & $pwsh -NoProfile -ExecutionPolicy Bypass -File $uploader -Server $Server -Username $Username -Password $Password `
-        -LocalPath $appDir -RemotePath $target -ManifestPath $manifestPath @dryArgs
-    if ($LASTEXITCODE -ne 0) { throw "Uploading application files failed (exit code $LASTEXITCODE). The gateway stays in maintenance mode; fix and rerun." }
+    Write-Host "4. Uploading application files to ftp://$($ftp.Server)/$target (no pruning) ..." -ForegroundColor Yellow
+    try {
+        Invoke-FtpSync -Settings $ftp -LocalPath $appDir -RemotePath $target -ManifestPath $manifestPath -DryRun:$dryRun | Out-Null
+    }
+    catch { throw "Uploading application files failed: $($_.Exception.Message) The gateway stays in maintenance mode; fix and rerun." }
 
     if ($dryRun) { Write-Host "Dry run complete. No remote files were changed." -ForegroundColor Cyan; return }
 
     Write-Host "5. Bringing the gateway back online..." -ForegroundColor Yellow
-    $del = [System.Net.FtpWebRequest]::Create("ftp://$Server/$target/app_offline.htm")
-    $del.Method = [System.Net.WebRequestMethods+Ftp]::DeleteFile
-    $del.Credentials = New-Object System.Net.NetworkCredential($Username, $Password)
-    $del.UsePassive = $true
-    $del.GetResponse().Close()
+    Remove-FtpRemoteFile -Settings $ftp -Path "$target/app_offline.htm"
 
     # ---- 6. Health checks -----------------------------------------------------------------------------------
     $ok = $false; $last = "no response"

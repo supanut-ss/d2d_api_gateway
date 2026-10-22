@@ -1,0 +1,3 @@
+# Local credentials and upload history: never commit.
+ftp-deploy.settings.psd1
+.cache/
